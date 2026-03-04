@@ -1,0 +1,12 @@
+# Папка с данными парсера
+web-parsers/investmoskow/data/
+
+# Папка с ноутбуками
+notebooks/
+
+# Папка бота
+bot/
+
+.ipynb_checkpoints/
+__pycache__/
+.env
