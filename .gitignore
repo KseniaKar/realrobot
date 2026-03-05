@@ -7,6 +7,8 @@ notebooks/
 # Папка бота
 bot/
 
+rent.md
+
 .ipynb_checkpoints/
 __pycache__/
 .env
