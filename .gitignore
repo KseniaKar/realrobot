@@ -6,9 +6,11 @@ notebooks/
 
 # Папка бота
 bot/
-presentation/
 tg/
 mcp/
+presentation/~$slides.pptx
+presentation/slides.pptx
+
 
 rent.md
 
