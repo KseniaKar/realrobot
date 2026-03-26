@@ -1,0 +1,34 @@
+storage site as "Сайт"
+storage domain as "Домен" #green
+storage auth as "Авторизация" #green
+storage demo as "Демо-объект"
+storage private as "Платный раздел"
+storage kassa as "Сервис оплаты" #green
+site ---> auth
+site ---> demo
+site ---> private
+private ---> kassa
+site ---> domain
+
+storage tenders as "Текущие торги"
+storage old_tenders as "Старые торги"
+storage new_tender_parser as "Парсер новых торгов" #green
+storage old_tender_parser as "Парсер старых торгов" #green
+
+demo --> old_tenders
+private --> tenders
+tenders --> new_tender_parser
+old_tenders --> old_tender_parser
+
+storage generator as "Генератор описаний"
+generator --> tenders
+generator --> old_tenders
+
+storage calculation as "Расчет окупаемости"
+storage concurrency as "Оценка конкурентности"
+storage same_arenda as "Похожие в аренду"
+storage same_sale as "Похожие в продажу"
+storage arenda_logs as "Данные об аренде"
+storage sales_logs as "Данные о продаже"
+storage arenda_look_a_like as "Похожие в аренду"
+storage sales_look_a_like as "Похожие в продажу"
