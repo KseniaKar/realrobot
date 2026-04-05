@@ -443,16 +443,26 @@ if os.path.exists(proto_path):
     df_has = df_merged[df_merged["participants_count"].notna()].copy()
     df_has["участники"] = df_has["participants_count"].astype(int)
     
+    # Чистим превышение: "95.0%" → 95.0
+    df_has["превышение_num"] = (
+        df_has["превышение_цены_%"]
+        .astype(str)
+        .str.replace("%", "", regex=False)
+        .str.strip()
+    )
+    df_has["превышение_num"] = pd.to_numeric(df_has["превышение_num"], errors="coerce")
+    df_has = df_has.dropna(subset=["превышение_num"])
+
     if len(df_has) > 0:
         # Scatter plot
         df_plot = df_has.copy()
         df_plot["адрес_short"] = df_plot["адрес"].str[:50] + "..."
-        
+
         fig = px.scatter(
             df_plot,
             x="участники",
-            y="превышение",
-            color="превышение",
+            y="превышение_num",
+            color="превышение_num",
             color_continuous_scale="RdYlBu_r",
             size="площадь_м²",
             size_max=20,
@@ -460,13 +470,13 @@ if os.path.exists(proto_path):
             hover_data={
                 "номер_лота": True,
                 "адрес_short": False,
-                "превышение": ":.1f%",
+                "превышение_num": ":.1f%",
                 "участники": True,
                 "площадь_м²": ":.0f"
             },
             labels={
                 "участники": "Количество участников",
-                "превышение": "Превышение цены, %",
+                "превышение_num": "Превышение цены, %",
                 "площадь_м²": "Площадь, м²"
             },
             title=f"Зависимость превышения цены от количества участников (N={len(df_has)})"
@@ -492,10 +502,10 @@ if os.path.exists(proto_path):
         df_has["диапазон"] = df_has["участники"].apply(range_participants)
         range_stats = df_has.groupby("диапазон").agg(
             lot_count=("номер_лота", "count"),
-            avg_excess=("превышение", "mean"),
-            median_excess=("превышение", "median"),
-            max_excess=("превышение", "max"),
-            success_rate=("превышение", lambda x: (x >= 0).sum() / len(x) * 100)
+            avg_excess=("превышение_num", "mean"),
+            median_excess=("превышение_num", "median"),
+            max_excess=("превышение_num", "max"),
+            success_rate=("превышение_num", lambda x: (x >= 0).sum() / len(x) * 100)
         ).reset_index()
         
         order = ["0 (без борьбы)", "1 участник", "2 участника", "3 участника", "4-5 участников",
@@ -523,7 +533,7 @@ if os.path.exists(proto_path):
         )
         
         # Корреляция
-        corr = df_has[df_has["участники"] > 0][["участники", "превышение"]].corr().iloc[0, 1]
+        corr = df_has[df_has["участники"] > 0][["участники", "превышение_num"]].corr().iloc[0, 1]
         st.caption(f"Корреляция (участники ↔ превышение): r = {corr:.3f}")
     else:
         st.info("Нет данных об участниках для отфильтрованных лотов")
