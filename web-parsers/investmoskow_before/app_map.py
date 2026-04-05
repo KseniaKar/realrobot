@@ -343,10 +343,10 @@ for _, row in filtered.iterrows():
     start_price = f"{row['начальная_цена_руб']/1e6:.1f} млн ₽"
 
     popup_html = f"""
-    <div style="font-family: Arial, sans-serif; min-width: 220px;">
+    <div style="font-family: Arial, sans-serif; min-width: 240px;">
         <h4 style="margin: 0 0 8px; color: #333;">Лот #{row['номер_лота']}</h4>
         <table style="font-size: 13px; line-height: 1.6;">
-            <tr><td><b>Адрес:</b></td><td> {row['адрес'][:80]}...</td></tr>
+            <tr><td><b>Адрес:</b></td><td> {row['адрес'][:60]}...</td></tr>
             <tr><td><b>Площадь:</b></td><td> {row['площадь_м²']:.1f} м²</td></tr>
             <tr><td><b>Начальная цена:</b></td><td> {start_price}</td></tr>
             <tr><td><b>Итоговая цена:</b></td><td> {final_price}</td></tr>
@@ -354,6 +354,13 @@ for _, row in filtered.iterrows():
             <tr><td><b>Этаж:</b></td><td> {row['этаж']}</td></tr>
             <tr><td><b>Метро:</b></td><td> {row['метро']}</td></tr>
             <tr><td><b>Округ:</b></td><td> {row['округ_код']}</td></tr>
+        </table>
+        <hr style="border: 0; border-top: 1px solid #ccc; margin: 6px 0;">
+        <table style="font-size: 12px; line-height: 1.5; color: #555;">
+            <tr><td><b>Приём заявок:</b></td><td> {row.get('дата_начала_приёма', '—')} — {row.get('дата_окончания_приёма', '—')}</td></tr>
+            <tr><td><b>Отбор:</b></td><td> {row.get('дата_отбора_участников', '—')}</td></tr>
+            <tr><td><b>Торги:</b></td><td> {row.get('дата_проведения_торгов', '—')}</td></tr>
+            <tr><td><b>Итоги:</b></td><td> {row.get('дата_подведения_итогов', '—')}</td></tr>
         </table>
         {'<br><a href="' + str(row['platformLink']) + '" target="_blank" style="color: #1a73e8;">→ Подробнее на roseltorg.ru</a>' if pd.notna(row['platformLink']) else ''}
     </div>
