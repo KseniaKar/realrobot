@@ -14,6 +14,16 @@ python parser_completed.py
 
 Поля: url, номер_лота, площадь, начальная/итоговая цена, задаток, шаг аукциона, превышение, адрес, кадастр, метро, этаж, этажность, форма торгов, даты, ссылка на roseltorg.
 
+### ✅ Геокодирование адресов
+
+```bash
+py geocode_addresses.py
+```
+
+**Результат:** `data/investmoscow_completed_2026-04-04_geocoded.csv` — **2 839 записей, 2 744 с координатами (96.7%)**
+
+Добавлены поля: `latitude`, `longitude`. Используется Nominatim (OpenStreetMap) с кэшированием и валидацией по границам Москвы.
+
 ### ✅ Аналитика
 
 ```bash
@@ -36,15 +46,18 @@ Playwright **не нужен** — данные извлекаются из SSR 
 
 ```
 investmoskow_before/
-├── parser_completed.py          # Парсер завершенных торгов 2025-2026
-├── run_analytics.py             # Скрипт аналитики
-├── analytics_completed.ipynb    # Jupyter-ноутбук
+├── parser_completed.py            # Парсер завершенных торгов 2025-2026
+├── geocode_addresses.py           # Геокодирование адресов (Nominatim)
+├── run_analytics.py               # Скрипт аналитики
+├── analytics_completed.ipynb      # Jupyter-ноутбук
 ├── data/
-│   ├── investmoscow_completed_2026-04-04.csv  # 2 839 записей
-│   ├── analytics_summary.md      # Отчёт с ключевыми цифрами
-│   └── charts/                   # Графики (PNG)
-├── AGENT_TASK.md                 # ТЗ и план работ
-└── README.md                     # Этот файл
+│   ├── investmoscow_completed_2026-04-04.csv          # 2 839 записей
+│   ├── investmoscow_completed_2026-04-04_geocoded.csv # + latitude, longitude
+│   ├── geocache.json               # Кэш геокодирования
+│   ├── analytics_summary.md        # Отчёт с ключевыми цифрами
+│   └── charts/                     # Графики (PNG)
+├── AGENT_TASK.md                   # ТЗ и план работ
+└── README.md                       # Этот файл
 ```
 
 ## Ключевые цифры
