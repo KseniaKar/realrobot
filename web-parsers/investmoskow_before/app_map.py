@@ -6,7 +6,6 @@ import pandas as pd
 import folium
 from folium import plugins
 import numpy as np
-import plotly.express as px
 from streamlit_folium import st_folium
 import io
 import base64
@@ -454,22 +453,14 @@ if os.path.exists(proto_path):
     df_has = df_has.dropna(subset=["превышение_num"])
 
     if len(df_has) > 0:
-        fig = px.scatter(
+        st.scatter_chart(
             df_has,
             x="участники",
             y="превышение_num",
-            color="превышение_num",
-            color_continuous_scale="RdYlBu_r",
             size="площадь_м²",
-            size_max=20,
-            hover_name="адрес",
-            title=f"Зависимость превышения цены от количества участников (N={len(df_has)})"
+            color="превышение_num",
+            width="stretch"
         )
-        fig.update_layout(
-            coloraxis_colorbar=dict(title="Превышение %"),
-            height=500
-        )
-        st.plotly_chart(fig, use_container_width=True)
         
         # Статистика по диапазонам
         def range_participants(n):
