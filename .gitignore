@@ -18,3 +18,5 @@ rent.md
 .ipynb_checkpoints/
 __pycache__/
 .env
+"*.docx"  
+"*.rtf"  
