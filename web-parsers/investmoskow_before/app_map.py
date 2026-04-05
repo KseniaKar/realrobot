@@ -9,6 +9,10 @@ import numpy as np
 from streamlit_folium import st_folium
 import io
 import base64
+import os
+
+# Определяем базовую директорию (где лежит app_map.py)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ── Настройки страницы ──
 st.set_page_config(
@@ -76,7 +80,15 @@ st.markdown("""
 # ── Загрузка данных ──
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data/investmoscow_completed_2026-04-04_geocoded.csv", encoding="utf-8-sig")
+    csv_path = os.path.join(BASE_DIR, "data", "investmoscow_completed_2026-04-04_geocoded.csv")
+    if not os.path.exists(csv_path):
+        st.error(f"Файл не найден: {csv_path}")
+        st.error(f"BASE_DIR: {BASE_DIR}")
+        st.error(f"Содержимое директории: {os.listdir(BASE_DIR)}")
+        if os.path.exists(os.path.join(BASE_DIR, "data")):
+            st.error(f"Содержимое data/: {os.listdir(os.path.join(BASE_DIR, 'data'))}")
+        st.stop()
+    df = pd.read_csv(csv_path, encoding="utf-8-sig")
     # Убираем строки без координат
     df = df.dropna(subset=["latitude", "longitude"])
 
