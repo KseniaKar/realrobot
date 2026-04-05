@@ -6,6 +6,7 @@ import pandas as pd
 import folium
 from folium import plugins
 import numpy as np
+import plotly.express as px
 from streamlit_folium import st_folium
 import io
 import base64
@@ -425,6 +426,109 @@ with col_l2:
         """,
         unsafe_allow_html=True
     )
+
+# ═══════════════════════════════════════════════
+#  АНАЛИЗ: превышение vs участники
+# ═══════════════════════════════════════════════
+st.subheader("Превышение цены от количества участников")
+
+# Загружаем данные об участниках
+proto_path = os.path.join(BASE_DIR, "data", "protocols", "participants_data.csv")
+if os.path.exists(proto_path):
+    df_proto = pd.read_csv(proto_path, encoding="utf-8-sig")
+    df_proto["lot_id"] = df_proto["lot_id"].astype(int)
+    
+    # Объединяем с основными данными
+    df_merged = df.merge(df_proto, left_on="номер_лота", right_on="lot_id", how="left")
+    df_has = df_merged[df_merged["participants_count"].notna()].copy()
+    df_has["участники"] = df_has["participants_count"].astype(int)
+    
+    if len(df_has) > 0:
+        # Scatter plot
+        fig = px.scatter(
+            df_has,
+            x="участники",
+            y="превышение",
+            color="превышение",
+            color_continuous_scale="RdYlGn" if False else "RdYlBu_r",
+            size="площадь_м²",
+            size_max=20,
+            hover_data={
+                "номер_лота": True,
+                "адрес": lambda x: x.str[:50] + "...",
+                "превышение": ":.1f%",
+                "участники": True,
+            },
+            labels={
+                "участники": "Количество участников",
+                "превышение": "Превышение цены, %",
+                "площадь_м²": "Площадь, м²"
+            },
+            title=f"Зависимость превышения цены от количества участников (N={len(df_has)})"
+        )
+        fig.update_layout(
+            coloraxis_colorbar=dict(title="Превышение %"),
+            height=500
+        )
+        fig.update_traces(
+            hovertemplate="<b>Лот #%{customdata[0]}</b><br>%{customdata[1]}<br>" +
+                         "Превышение: %{y:.1f}%<br>Участники: %{x}<br>" +
+                         "Площадь: %{marker.size:.0f} м²<extra></extra>"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Статистика по диапазонам
+        def range_participants(n):
+            if n == 0: return "0 (без борьбы)"
+            elif n == 1: return "1 участник"
+            elif n == 2: return "2 участника"
+            elif n == 3: return "3 участника"
+            elif n <= 5: return "4-5 участников"
+            elif n <= 10: return "6-10 участников"
+            elif n <= 15: return "11-15 участников"
+            elif n <= 20: return "16-20 участников"
+            else: return "20+ участников"
+        
+        df_has["диапазон"] = df_has["участники"].apply(range_participants)
+        range_stats = df_has.groupby("диапазон").agg(
+            lot_count=("номер_лота", "count"),
+            avg_excess=("превышение", "mean"),
+            median_excess=("превышение", "median"),
+            max_excess=("превышение", "max"),
+            success_rate=("превышение", lambda x: (x >= 0).sum() / len(x) * 100)
+        ).reset_index()
+        
+        order = ["0 (без борьбы)", "1 участник", "2 участника", "3 участника", "4-5 участников",
+                 "6-10 участников", "11-15 участников", "16-20 участников", "20+ участников"]
+        range_stats["sort_key"] = range_stats["диапазон"].map({v: i for i, v in enumerate(order)})
+        range_stats = range_stats.dropna(subset=["sort_key"]).sort_values("sort_key")
+        
+        range_stats["avg_excess"] = range_stats["avg_excess"].map(lambda x: f"+{x:.1f}%" if x >= 0 else "—")
+        range_stats["median_excess"] = range_stats["median_excess"].map(lambda x: f"+{x:.1f}%" if x >= 0 else "—")
+        range_stats["max_excess"] = range_stats["max_excess"].map(lambda x: f"+{x:.0f}%")
+        range_stats["success_rate"] = range_stats["success_rate"].map(lambda x: f"{x:.0f}%")
+        range_stats = range_stats.rename(columns={
+            "диапазон": "Диапазон",
+            "lot_count": "Лотов",
+            "avg_excess": "Ср.превыш",
+            "median_excess": "Мед.превыш",
+            "max_excess": "Макс.превыш",
+            "success_rate": "Успешность"
+        })
+        
+        st.dataframe(
+            range_stats[["Диапазон", "Лотов", "Ср.превыш", "Мед.превыш", "Макс.превыш", "Успешность"]],
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        # Корреляция
+        corr = df_has[df_has["участники"] > 0][["участники", "превышение"]].corr().iloc[0, 1]
+        st.caption(f"Корреляция (участники ↔ превышение): r = {corr:.3f}")
+    else:
+        st.info("Нет данных об участниках для отфильтрованных лотов")
+else:
+    st.info("Файл с данными об участниках не найден")
 
 # ═══════════════════════════════════════════════
 #  ТАБЛИЦА ДАННЫХ
