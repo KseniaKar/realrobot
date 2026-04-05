@@ -454,31 +454,15 @@ if os.path.exists(proto_path):
     df_has = df_has.dropna(subset=["превышение_num"])
 
     if len(df_has) > 0:
-        # Scatter plot
-        df_plot = df_has.copy()
-        df_plot["адрес_short"] = df_plot["адрес"].str[:50] + "..."
-
         fig = px.scatter(
-            df_plot,
+            df_has,
             x="участники",
             y="превышение_num",
             color="превышение_num",
             color_continuous_scale="RdYlBu_r",
             size="площадь_м²",
             size_max=20,
-            hover_name="адрес_short",
-            hover_data={
-                "номер_лота": True,
-                "адрес_short": False,
-                "превышение_num": ":.1f%",
-                "участники": True,
-                "площадь_м²": ":.0f"
-            },
-            labels={
-                "участники": "Количество участников",
-                "превышение_num": "Превышение цены, %",
-                "площадь_м²": "Площадь, м²"
-            },
+            hover_name="адрес",
             title=f"Зависимость превышения цены от количества участников (N={len(df_has)})"
         )
         fig.update_layout(
