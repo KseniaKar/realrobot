@@ -445,19 +445,24 @@ if os.path.exists(proto_path):
     
     if len(df_has) > 0:
         # Scatter plot
+        df_plot = df_has.copy()
+        df_plot["адрес_short"] = df_plot["адрес"].str[:50] + "..."
+        
         fig = px.scatter(
-            df_has,
+            df_plot,
             x="участники",
             y="превышение",
             color="превышение",
-            color_continuous_scale="RdYlGn" if False else "RdYlBu_r",
+            color_continuous_scale="RdYlBu_r",
             size="площадь_м²",
             size_max=20,
+            hover_name="адрес_short",
             hover_data={
                 "номер_лота": True,
-                "адрес": lambda x: x.str[:50] + "...",
+                "адрес_short": False,
                 "превышение": ":.1f%",
                 "участники": True,
+                "площадь_м²": ":.0f"
             },
             labels={
                 "участники": "Количество участников",
@@ -469,11 +474,6 @@ if os.path.exists(proto_path):
         fig.update_layout(
             coloraxis_colorbar=dict(title="Превышение %"),
             height=500
-        )
-        fig.update_traces(
-            hovertemplate="<b>Лот #%{customdata[0]}</b><br>%{customdata[1]}<br>" +
-                         "Превышение: %{y:.1f}%<br>Участники: %{x}<br>" +
-                         "Площадь: %{marker.size:.0f} м²<extra></extra>"
         )
         st.plotly_chart(fig, use_container_width=True)
         
@@ -575,10 +575,10 @@ if os.path.exists(proto_path):
         how="left"
     )
     filtered["участники"] = filtered["participants_count"].apply(
-        lambda x: int(x) if pd.notna(x) else "—"
+        lambda x: int(x) if pd.notna(x) else None
     )
 else:
-    filtered["участники"] = "—"
+    filtered["участники"] = None
 
 display_cols = [
     "превышение_display", "участники", "ссылка_на_лот", "номер_лота", "адрес", "площадь_м²",
@@ -592,7 +592,7 @@ st.dataframe(
     hide_index=True,
     column_config={
         "превышение_display": "Превышение",
-        "участники": st.column_config.NumberColumn("Участники", format="%d"),
+        "участники": "Участники",
         "ссылка_на_лот": st.column_config.LinkColumn("Лот", width="small"),
         "номер_лота": None,
         "lot_id": None,
