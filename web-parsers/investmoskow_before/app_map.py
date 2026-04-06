@@ -563,15 +563,6 @@ if df_proto is not None and "participants_count" in df_proto.columns:
             corr = valid[["участники", "превышение_цены_%"]].corr().iloc[0, 1]
             st.caption(f"Корреляция (участники ↔ превышение): r = {corr:.3f}")
 
-        # Топ-5 по количеству участников
-        st.subheader("Топ-5 лотов по количеству участников")
-        top5 = df_has.nlargest(5, "участники")[["номер_лота", "адрес", "участники", "превышение_цены_%", "winner", "winner_price"]]
-        for _, row in top5.iterrows():
-            exc = f"+{row['превышение_цены_%']:.0f}%" if row["превышение_цены_%"] >= 0 else "Не состоялся"
-            winner = str(row.get("winner", ""))[:50] if pd.notna(row.get("winner")) else "—"
-            price = str(row.get("winner_price", ""))[:20] if pd.notna(row.get("winner_price")) else "—"
-            addr = str(row["адрес"])[:50]
-            st.markdown(f"**#{int(row['номер_лота'])}** — {int(row['участники'])} уч., {exc}, победитель: {winner}, цена: {price}\n\n📍 {addr}")
     else:
         st.info("Нет данных об участниках для отфильтрованных лотов")
 else:
@@ -630,7 +621,7 @@ else:
 if df_proto_full is not None:
     df_proto_full["lot_id"] = df_proto_full["lot_id"].astype(int)
     filtered = filtered.merge(
-        df_proto_full[["lot_id", "participants_count", "winner", "winner_price"]],
+        df_proto_full[["lot_id", "participants_count"]],
         left_on="номер_лота",
         right_on="lot_id",
         how="left"
@@ -640,11 +631,9 @@ if df_proto_full is not None:
     )
 else:
     filtered["участники"] = None
-    filtered["winner"] = None
-    filtered["winner_price"] = None
 
 display_cols = [
-    "превышение_display", "участники", "winner", "winner_price", "ссылка_на_лот", "номер_лота", "адрес", "площадь_м²",
+    "превышение_display", "участники", "ссылка_на_лот", "номер_лота", "адрес", "площадь_м²",
     "начальная_цена_руб", "итоговая_цена_руб", "этаж", "метро", "округ_код",
     "статус_торга"
 ]
@@ -656,8 +645,6 @@ st.dataframe(
     column_config={
         "превышение_display": "Превышение",
         "участники": "Участники",
-        "winner": "Победитель",
-        "winner_price": "Цена победителя",
         "ссылка_на_лот": st.column_config.LinkColumn("Лот", width="small"),
         "номер_лота": None,
         "lot_id": None,
