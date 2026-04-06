@@ -487,8 +487,8 @@ if df_proto is not None and "participants_count" in df_proto.columns:
     df_proto["lot_id"] = df_proto["lot_id"].astype(int)
     df_proto = df_proto[["lot_id", "participants_count", "winner", "winner_price"]].copy()
 
-    # Используем df напрямую (там уже есть participants_count из раннего merge)
-    df_merged = df.copy()
+    # Используем filtered (там уже есть participants_count из раннего merge)
+    df_merged = filtered.copy()
 
     # Если нет данных об участниках, но нет и итоговой цены — считаем, что участников 0
     if 'итоговая_цена_руб' in df_merged.columns and 'participants_count' in df_merged.columns:
