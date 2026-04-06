@@ -652,7 +652,7 @@ else:
 if df_proto_full is not None:
     df_proto_full["lot_id"] = df_proto_full["lot_id"].astype(int)
     filtered = filtered.merge(
-        df_proto_full[["lot_id", "participants_count"]],
+        df_proto_full[["lot_id", "participants_count", "real_participants"]],
         left_on="номер_лота",
         right_on="lot_id",
         how="left"
@@ -665,6 +665,7 @@ if df_proto_full is not None:
     )
 else:
     filtered["участники"] = None
+    filtered["реально_участвовало"] = None
 
 display_cols = [
     "превышение_display", "участники", "реально_участвовало", "ссылка_на_лот", "номер_лота", "адрес", "площадь_м²",
