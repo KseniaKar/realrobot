@@ -559,19 +559,22 @@ if df_proto is not None and "participants_count" in df_proto.columns:
         range_stats["sort_key"] = range_stats["диапазон"].map({v: i for i, v in enumerate(order)})
         range_stats = range_stats.dropna(subset=["sort_key"]).sort_values("sort_key")
 
-        # Форматирование: прочерки для "Не состоялись" и 0.0% без плюса
-        def fmt_excess(val):
+        # Форматирование: прочерки для "Не состоялись" и "1 участник"
+        no_excess_ranges = ["Не состоялись", "1 участник"]
+        def fmt_excess(val, range_name):
+            if range_name in no_excess_ranges:
+                return "—"
             if pd.isna(val):
                 return "—"
             if val == 0.0:
                 return "0.0%"
             return f"+{val:.1f}%" if val > 0 else "—"
 
-        range_stats["avg_excess"] = range_stats["avg_excess"].apply(fmt_excess)
-        range_stats["median_excess"] = range_stats["median_excess"].apply(fmt_excess)
-        range_stats["max_excess"] = range_stats["max_excess"].apply(fmt_excess)
+        range_stats["avg_excess"] = range_stats.apply(lambda r: fmt_excess(r["avg_excess"], r["диапазон"]), axis=1)
+        range_stats["median_excess"] = range_stats.apply(lambda r: fmt_excess(r["median_excess"], r["диапазон"]), axis=1)
+        range_stats["max_excess"] = range_stats.apply(lambda r: fmt_excess(r["max_excess"], r["диапазон"]), axis=1)
         range_stats["success_rate"] = range_stats.apply(
-            lambda r: "—" if r["диапазон"] == "Не состоялись" else f"{r['success_rate']:.0f}%", axis=1
+            lambda r: "—" if r["диапазон"] in no_excess_ranges else f"{r['success_rate']:.0f}%", axis=1
         )
         range_stats = range_stats.rename(columns={
             "диапазон": "Диапазон",
