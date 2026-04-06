@@ -198,15 +198,29 @@ def parse_protocol_docx(filepath):
     # Количество участников из таблицы
     for table in doc.tables:
         if len(table.rows) > 1 and len(table.columns) >= 2:
+            # Собираем текст из всех ячеек первой строки
             header_text = " ".join(c.text.strip().lower() for c in table.rows[0].cells)
-            is_participants_table = (
+            
+            # Проверяем заголовок
+            is_header = (
                 "номер заявки" in header_text or
                 "порядковый" in header_text or
-                "№" in header_text or
-                "место" in header_text  # Таблица предложений: Место, Сумма, Порядковый номер
+                "номер" in header_text and "заявк" in header_text or
+                "№ п/п" in header_text or
+                "место" in header_text
             )
-            if is_participants_table:
-                result["participants_count"] = len(table.rows) - 1
+            if is_header:
+                # Если первая строка — заголовок, проверяем данные
+                if len(table.rows) > 1:
+                    first_data = table.rows[1].cells[0].text.strip()
+                    # Если вторая строка выглядит как порядковый номер (цифра) или номер заявки — это таблица участников
+                    if re.match(r'^\d+$', first_data) or re.match(r'^\d{5,}$', first_data):
+                        result["participants_count"] = len(table.rows) - 1
+                        break
+            # Проверяем: первая строка = данные (номер заявки без заголовка)
+            elif re.match(r'^\d{5,}$', table.rows[0].cells[0].text.strip()):
+                # Это таблица участников без заголовка
+                result["participants_count"] = len(table.rows)
                 break
 
     return result
