@@ -555,12 +555,29 @@ if df_proto is not None and "participants_count" in df_proto.columns:
         ).reset_index()
 
         order = ["Не состоялись", "1 участник", "2 участника", "3 участника", "4-5 участников",
-                 "6-10 участников", "11-15 участников", "16-20 участников", "20+ участников"]
+                 "6-10 участников", "11-15 участников", "16-20 участников", "20+ участников", "Нет протокола"]
         range_stats["sort_key"] = range_stats["диапазон"].map({v: i for i, v in enumerate(order)})
         range_stats = range_stats.dropna(subset=["sort_key"]).sort_values("sort_key")
 
+        # Добавляем строку "Нет протокола" для лотов без данных об участниках
+        total_lots_in_filter = len(df_merged)
+        lots_with_data = len(df_has)
+        no_protocol_count = total_lots_in_filter - lots_with_data
+        
+        if no_protocol_count > 0:
+            new_row = pd.DataFrame([{
+                "диапазон": "Нет протокола",
+                "lot_count": no_protocol_count,
+                "avg_excess": None,
+                "median_excess": None,
+                "max_excess": None,
+                "success_rate": None,
+                "sort_key": len(order) - 1
+            }])
+            range_stats = pd.concat([range_stats, new_row], ignore_index=True)
+
         # Форматирование: прочерки для "Не состоялись" и "1 участник"
-        no_excess_ranges = ["Не состоялись", "1 участник"]
+        no_excess_ranges = ["Не состоялись", "1 участник", "Нет протокола"]
         def fmt_excess(val, range_name):
             if range_name in no_excess_ranges:
                 return "—"
