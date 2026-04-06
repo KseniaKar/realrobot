@@ -101,6 +101,7 @@ investmoskow_before/
 │   └── charts/                     # Графики (PNG)
 ├── EXCESS_VS_PARTICIPANTS.md       # Анализ: превышение vs участники
 ├── CLUSTER_ANALYSIS.md             # Анализ ценовых кластеров по этажам
+├── COMPREHENSIVE_ANALYSIS.md       # Комплексный анализ всех факторов
 ├── AGENT_TASK.md                   # ТЗ и план работ
 └── README.md                       # Этот файл
 ```
