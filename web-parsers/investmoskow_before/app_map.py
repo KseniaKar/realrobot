@@ -26,6 +26,8 @@ elif os.path.exists(os.path.join(os.path.dirname(FILE_DIR), "data")):
 else:
     BASE_DIR = FILE_DIR
 
+st.info(f"📂 BASE_DIR: `{BASE_DIR}`")
+
 # ── Настройки страницы ──
 st.set_page_config(
     page_title="Карта торгов investmoscow.ru",
