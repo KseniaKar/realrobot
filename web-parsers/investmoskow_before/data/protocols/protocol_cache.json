@@ -14688,8 +14688,7 @@
     "error": "no_protocol"
   },
   "19797633": {
-    "participants_count": 1,
-    "error": null
+    "error": "no_protocol"
   },
   "19681785": {
     "error": "no_protocol"
@@ -15311,8 +15310,7 @@
     "error": "no_protocol"
   },
   "19742390": {
-    "participants_count": 1,
-    "error": null
+    "error": "no_protocol"
   },
   "19746766": {
     "error": "no_protocol"
@@ -15682,8 +15680,7 @@
     "error": "no_protocol"
   },
   "19790908": {
-    "participants_count": 1,
-    "error": null
+    "error": "no_protocol"
   },
   "19906201": {
     "error": "no_protocol"
@@ -16211,8 +16208,7 @@
     "auction_duration": ""
   },
   "19867679": {
-    "participants_count": 1,
-    "error": null
+    "error": "no_protocol"
   },
   "19867673": {
     "error": "no_protocol"
@@ -20313,16 +20309,7 @@
     "auction_duration": ""
   },
   "19649441": {
-    "participants_count": 1,
-    "winner": "№ 1508734",
-    "winner_price": "",
-    "winner_price_num": null,
-    "second_place": "",
-    "second_price": "",
-    "second_price_num": null,
-    "start_price": "32 664 000,",
-    "auction_date": "",
-    "auction_duration": ""
+    "error": "no_protocol"
   },
   "19649539": {
     "participants_count": 2,
@@ -20433,16 +20420,7 @@
     "auction_duration": ""
   },
   "19712781": {
-    "participants_count": 1,
-    "winner": "№ 6139818",
-    "winner_price": "",
-    "winner_price_num": null,
-    "second_place": "",
-    "second_price": "",
-    "second_price_num": null,
-    "start_price": "19 255 800,",
-    "auction_date": "",
-    "auction_duration": ""
+    "error": "no_protocol"
   },
   "19712846": {
     "participants_count": 3,
@@ -21438,7 +21416,7 @@
     "auction_duration": ""
   },
   "19768568": {
-    "participants_count": 1
+    "error": "no_protocol"
   },
   "19770092": {
     "participants_count": 0,
@@ -24951,7 +24929,7 @@
     "auction_duration": ""
   },
   "19924698": {
-    "participants_count": 1
+    "error": "no_protocol"
   },
   "19924703": {
     "participants_count": 0,
@@ -25104,16 +25082,7 @@
     "auction_duration": ""
   },
   "19945206": {
-    "participants_count": 1,
-    "winner": "№ 3651871",
-    "winner_price": "",
-    "winner_price_num": null,
-    "second_place": "",
-    "second_price": "",
-    "second_price_num": null,
-    "start_price": "9 455 000,",
-    "auction_date": "",
-    "auction_duration": ""
+    "error": "no_protocol"
   },
   "19945526": {
     "participants_count": 1,
