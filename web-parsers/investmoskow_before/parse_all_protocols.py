@@ -198,11 +198,17 @@ def parse_protocol_docx(filepath):
     # Количество участников из таблицы
     for table in doc.tables:
         if len(table.rows) > 1 and len(table.columns) >= 2:
-            header = table.rows[0].cells[0].text.strip().lower()
-            if "номер заявки" in header or "порядковый" in header or "№" in header:
+            header_text = " ".join(c.text.strip().lower() for c in table.rows[0].cells)
+            is_participants_table = (
+                "номер заявки" in header_text or
+                "порядковый" in header_text or
+                "№" in header_text or
+                "место" in header_text  # Таблица предложений: Место, Сумма, Порядковый номер
+            )
+            if is_participants_table:
                 result["participants_count"] = len(table.rows) - 1
                 break
-    
+
     return result
 
 def get_protocol_attachment_id(lot_id):
