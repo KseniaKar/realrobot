@@ -186,7 +186,7 @@ df["статус_торга"] = df.apply(get_status, axis=1)
 
 # ── Цветовая функция ──
 def get_color(row):
-    """Серый для 0 участников или отрицательного превышения, 0% = зелёный, >0% = жёлтый→красный"""
+    """Серый для 0 участников или отрицательного превышения, 0% = зелёный, 50% = жёлтый, 100%+ = красный"""
     pc = row.get("participants_count")
     pct = row["превышение_цены_%"]
     
@@ -194,14 +194,21 @@ def get_color(row):
     if (pd.notna(pc) and int(pc) == 0) or pct < 0:
         return "#4a4a4a"  # тёмно-серый
 
-    # 0% = жёлтый
+    # 0% = зелёный, 50% = жёлтый, 100%+ = красный
     if pct <= 0:
-        return "#f1d621"
-
-    norm = min(pct / 200.0, 1.0)
-    r = int(241 + (231 - 241) * norm)
-    g = int(214 + (76 - 214) * norm)
-    b = int(33 + (60 - 33) * norm)
+        return "#2ecc71"  # зелёный
+    elif pct <= 50:
+        # Зелёный → Жёлтый
+        t = pct / 50.0
+        r = int(46 + (241 - 46) * t)
+        g = int(204 + (214 - 204) * t)
+        b = int(113 + (33 - 113) * t)
+    else:
+        # Жёлтый → Красный
+        t = min((pct - 50) / 50.0, 1.0)
+        r = int(241 + (231 - 241) * t)
+        g = int(214 + (76 - 214) * t)
+        b = int(33 + (60 - 33) * t)
     return f"#{r:02x}{g:02x}{b:02x}"
 
 df["color"] = df.apply(get_color, axis=1)
@@ -432,12 +439,16 @@ with col_l1:
             <span>Не состоялись (0 участников или снижение цены)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
-            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #f1d621;"></span>
+            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #2ecc71;"></span>
             <span>0% (стартовая цена)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
+            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #f1d621;"></span>
+            <span>~50% (среднее превышение)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #e74c3c;"></span>
-            <span>Высокое превышение (>100%)</span>
+            <span>100%+ (высокое превышение)</span>
         </div>
         """,
         unsafe_allow_html=True
