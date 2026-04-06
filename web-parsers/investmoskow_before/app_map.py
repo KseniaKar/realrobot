@@ -169,7 +169,8 @@ df["округ_код"] = df["округ"].map(OKRUG_SHORT).fillna("Другое
 
 # ── Определение статуса ──
 def get_status(row):
-    if row["превышение_цены_%"] < 0:
+    # Если есть итоговая цена — торги состоялись (даже если цена упала)
+    if pd.isna(row["итоговая_цена_руб"]):
         return "Не состоялся"
     return "Состоялся"
 
@@ -312,23 +313,17 @@ st.title("Карта торгов investmoscow.ru")
 st.caption("Нежилые помещения, торги 2025–2026")
 
 # Статистика
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Всего лотов", len(filtered))
 with col2:
-    n_successful = len(filtered[filtered["статус_торга"] == "Состоялся"])
-    st.metric("Состоялись", n_successful)
-with col3:
-    n_failed = len(filtered[filtered["статус_торга"] == "Не состоялся"])
-    st.metric("Не состоялись", n_failed)
-with col4:
-    if n_successful > 0:
+    if len(filtered[filtered["итоговая_цена_руб"].notna()]) > 0:
         avg_excess = filtered[filtered["превышение_цены_%"] >= 0]["превышение_цены_%"].mean()
         st.metric("Ср. превышение", f"+{avg_excess:.1f}%")
     else:
         st.metric("Ср. превышение", "—")
-with col5:
-    if n_successful > 0:
+with col3:
+    if len(filtered[filtered["итоговая_цена_руб"].notna()]) > 0:
         avg_price_m2 = filtered[filtered["итоговая_цена_руб"].notna()]["цена_за_м²"].mean()
         st.metric("Ср. цена за м²", f"{avg_price_m2/1e3:.0f}K ₽")
     else:
@@ -493,6 +488,13 @@ if df_proto is not None and "participants_count" in df_proto.columns:
 
     # Объединяем с основными данными
     df_merged = df.merge(df_proto, left_on="номер_лота", right_on="lot_id", how="left")
+
+    # Если нет данных об участниках, но нет и итоговой цены — считаем, что участников 0
+    # Это переносит несостоявшиеся торги из "Нет протокола" в "0 участников"
+    if 'итоговая_цена_руб' in df_merged.columns and 'participants_count' in df_merged.columns:
+        mask_failed_no_data = (df_merged['participants_count'].isna()) & (df_merged['итоговая_цена_руб'].isna())
+        df_merged.loc[mask_failed_no_data, 'participants_count'] = 0
+
     df_has = df_merged[df_merged["participants_count"].notna()].copy()
     df_has["участники"] = df_has["participants_count"].astype(int)
 
