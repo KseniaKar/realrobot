@@ -284,18 +284,15 @@ def main():
     df = pd.read_csv("data/investmoscow_completed_2026-04-04_geocoded.csv", encoding="utf-8-sig")
     lots = df[df["platformLink"].notna()]
 
-    # Фильтруем: только те, которых НЕТ в кэше ИЛИ в кэше нет участников
+    # Фильтруем: только те, которых НЕТ в кэше ИЛИ была ошибка no_protocol (протокол мог появиться)
     def need_parsing(lot_id):
         if lot_id not in cache:
             return True
-        # Если в кэше есть, но participants_count == 0 или нет поля — перепарсим
+        # Перепроверяем лоты где раньше не нашли протокол — он мог появиться
         entry = cache[lot_id]
-        # Не перепарсим лоты, где точно нет протокола (бессмысленно)
         if entry.get("error") == "no_protocol":
-            return False
-        if entry.get("error"):
             return True
-        return entry.get("participants_count", 0) == 0
+        return False
 
     lots_to_parse = [row for _, row in lots.iterrows() if need_parsing(str(int(row["номер_лота"])))]
 
