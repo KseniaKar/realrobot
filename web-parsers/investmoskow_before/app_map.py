@@ -14,8 +14,16 @@ import io
 import base64
 import os
 
-# Определяем базовую директорию (где лежит app_map.py)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Определяем базовую директорию
+# Если запущено из поддиректории (web-parsers/investmoskow_before/), ищем данные там
+# Иначе — ищем на уровень выше (в корне репозитория)
+FILE_DIR = os.path.dirname(os.path.abspath(__file__))
+if os.path.exists(os.path.join(FILE_DIR, "data")):
+    BASE_DIR = FILE_DIR
+elif os.path.exists(os.path.join(os.path.dirname(FILE_DIR), "data")):
+    BASE_DIR = os.path.dirname(FILE_DIR)
+else:
+    BASE_DIR = FILE_DIR
 
 # ── Настройки страницы ──
 st.set_page_config(
