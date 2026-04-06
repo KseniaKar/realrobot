@@ -493,11 +493,10 @@ if df_proto is not None and "participants_count" in df_proto.columns:
     df_proto["lot_id"] = df_proto["lot_id"].astype(int)
     df_proto = df_proto[["lot_id", "participants_count", "winner", "winner_price"]].copy()
 
-    # Объединяем с основными данными
-    df_merged = df.merge(df_proto, left_on="номер_лота", right_on="lot_id", how="left")
+    # Используем df напрямую (там уже есть participants_count из раннего merge)
+    df_merged = df.copy()
 
     # Если нет данных об участниках, но нет и итоговой цены — считаем, что участников 0
-    # Это переносит несостоявшиеся торги из "Нет протокола" в "0 участников"
     if 'итоговая_цена_руб' in df_merged.columns and 'participants_count' in df_merged.columns:
         mask_failed_no_data = (df_merged['participants_count'].isna()) & (df_merged['итоговая_цена_руб'].isna())
         df_merged.loc[mask_failed_no_data, 'participants_count'] = 0
