@@ -121,6 +121,10 @@ def load_data():
 
 df = load_data()
 
+# ── Пути к данным об участниках ──
+PROTO_CSV_PATH = os.path.join(BASE_DIR, "data", "protocols", "participants_data.csv")
+PROTO_JSON_PATH = os.path.join(BASE_DIR, "data", "protocols", "protocol_cache.json")
+
 # ── Извлечение округа из адреса ──
 def extract_okrug(addr):
     if not isinstance(addr, str):
@@ -337,19 +341,34 @@ for _, row in filtered.iterrows():
     if pd.isna(row["latitude"]) or pd.isna(row["longitude"]):
         continue
 
+    # Получаем участников
+    participants = None
+    if "participants_count" in row.index and pd.notna(row["participants_count"]):
+        participants = int(row["participants_count"])
+
     # Popup
     excess_text = f"+{row['превышение_цены_%']:.1f}%" if row["превышение_цены_%"] >= 0 else "Не состоялся"
     final_price = f"{row['итоговая_цена_руб']/1e6:.1f} млн ₽" if pd.notna(row["итоговая_цена_руб"]) else "—"
     start_price = f"{row['начальная_цена_руб']/1e6:.1f} млн ₽"
 
+    participants_text = f"<tr><td><b>Участников:</b></td><td> {participants}</td></tr>" if participants is not None else ""
+    winner_text = ""
+    if "winner" in row.index and pd.notna(row.get("winner")):
+        winner_name = str(row["winner"])[:60]
+        winner_text = f"<tr><td><b>Победитель:</b></td><td> {winner_name}</td></tr>"
+        if "winner_price" in row.index and pd.notna(row.get("winner_price")):
+            winner_text = f"<tr><td><b>Победитель:</b></td><td> {winner_name} ({row['winner_price']} ₽)</td></tr>"
+
     popup_html = f"""
-    <div style="font-family: Arial, sans-serif; min-width: 240px;">
+    <div style="font-family: Arial, sans-serif; min-width: 280px;">
         <h4 style="margin: 0 0 8px; color: #333;">Лот #{row['номер_лота']}</h4>
         <table style="font-size: 13px; line-height: 1.6;">
             <tr><td><b>Адрес:</b></td><td> {row['адрес'][:60]}...</td></tr>
             <tr><td><b>Площадь:</b></td><td> {row['площадь_м²']:.1f} м²</td></tr>
             <tr><td><b>Начальная цена:</b></td><td> {start_price}</td></tr>
             <tr><td><b>Итоговая цена:</b></td><td> {final_price}</td></tr>
+            {participants_text}
+            {winner_text}
             <tr><td><b>Превышение:</b></td><td style="color: {'green' if row['превышение_цены_%'] >= 0 else 'gray'}; font-weight: bold;"> {excess_text}</td></tr>
             <tr><td><b>Этаж:</b></td><td> {row['этаж']}</td></tr>
             <tr><td><b>Метро:</b></td><td> {row['метро']}</td></tr>
@@ -441,33 +460,44 @@ with col_l2:
 # ═══════════════════════════════════════════════
 st.subheader("Превышение цены от количества участников")
 
-# Загружаем данные об участниках
-proto_path = os.path.join(BASE_DIR, "data", "protocols", "participants_data.csv")
-if os.path.exists(proto_path):
-    df_proto = pd.read_csv(proto_path, encoding="utf-8-sig")
-    df_proto["lot_id"] = df_proto["lot_id"].astype(int)
+# Загружаем данные об участниках — используем полный кэш, а не ограниченный CSV
+if os.path.exists(PROTO_JSON_PATH):
+    import json
+    with open(PROTO_JSON_PATH, "r", encoding="utf-8") as f:
+        cache_data = json.load(f)
     
+    # Создаём DataFrame из кэша — там все 2839 записей
+    rows = []
+    for lot_id, data in cache_data.items():
+        row = {"lot_id": int(lot_id)}
+        row.update(data)
+        rows.append(row)
+    df_proto = pd.DataFrame(rows)
+elif os.path.exists(PROTO_CSV_PATH):
+    df_proto = pd.read_csv(PROTO_CSV_PATH, encoding="utf-8-sig")
+    df_proto["lot_id"] = df_proto["lot_id"].astype(int)
+else:
+    df_proto = None
+
+if df_proto is not None and "participants_count" in df_proto.columns:
+    df_proto["lot_id"] = df_proto["lot_id"].astype(int)
+    df_proto = df_proto[["lot_id", "participants_count", "winner", "winner_price"]].copy()
+
     # Объединяем с основными данными
     df_merged = df.merge(df_proto, left_on="номер_лота", right_on="lot_id", how="left")
     df_has = df_merged[df_merged["participants_count"].notna()].copy()
     df_has["участники"] = df_has["participants_count"].astype(int)
-    
-    # Чистим превышение: "95.0%" → 95.0
-    df_has["превышение_num"] = (
-        df_has["превышение_цены_%"]
-        .astype(str)
-        .str.replace("%", "", regex=False)
-        .str.strip()
-    )
-    df_has["превышение_num"] = pd.to_numeric(df_has["превышение_num"], errors="coerce")
-    df_has = df_has.dropna(subset=["превышение_num"])
+
+    # Превышение уже числовое (load_data обработал)
+    df_has = df_has[df_has["превышение_цены_%"] >= -1].copy()
 
     if len(df_has) > 0:
+        # Scatter plot
         fig, ax = plt.subplots(figsize=(12, 5))
         scatter = ax.scatter(
             df_has["участники"],
-            df_has["превышение_num"],
-            c=df_has["превышение_num"],
+            df_has["превышение_цены_%"],
+            c=df_has["превышение_цены_%"],
             cmap="RdYlBu_r",
             s=np.clip(df_has["площадь_м²"] * 0.3, 20, 300),
             alpha=0.7,
@@ -481,7 +511,7 @@ if os.path.exists(proto_path):
         cbar.set_label("Превышение, %")
         st.pyplot(fig)
         plt.close()
-        
+
         # Статистика по диапазонам
         def range_participants(n):
             if n == 0: return "0 (без борьбы)"
@@ -493,21 +523,21 @@ if os.path.exists(proto_path):
             elif n <= 15: return "11-15 участников"
             elif n <= 20: return "16-20 участников"
             else: return "20+ участников"
-        
+
         df_has["диапазон"] = df_has["участники"].apply(range_participants)
         range_stats = df_has.groupby("диапазон").agg(
             lot_count=("номер_лота", "count"),
-            avg_excess=("превышение_num", "mean"),
-            median_excess=("превышение_num", "median"),
-            max_excess=("превышение_num", "max"),
-            success_rate=("превышение_num", lambda x: (x >= 0).sum() / len(x) * 100)
+            avg_excess=("превышение_цены_%", "mean"),
+            median_excess=("превышение_цены_%", "median"),
+            max_excess=("превышение_цены_%", "max"),
+            success_rate=("превышение_цены_%", lambda x: (x >= 0).sum() / len(x) * 100)
         ).reset_index()
-        
+
         order = ["0 (без борьбы)", "1 участник", "2 участника", "3 участника", "4-5 участников",
                  "6-10 участников", "11-15 участников", "16-20 участников", "20+ участников"]
         range_stats["sort_key"] = range_stats["диапазон"].map({v: i for i, v in enumerate(order)})
         range_stats = range_stats.dropna(subset=["sort_key"]).sort_values("sort_key")
-        
+
         range_stats["avg_excess"] = range_stats["avg_excess"].map(lambda x: f"+{x:.1f}%" if x >= 0 else "—")
         range_stats["median_excess"] = range_stats["median_excess"].map(lambda x: f"+{x:.1f}%" if x >= 0 else "—")
         range_stats["max_excess"] = range_stats["max_excess"].map(lambda x: f"+{x:.0f}%")
@@ -520,20 +550,32 @@ if os.path.exists(proto_path):
             "max_excess": "Макс.превыш",
             "success_rate": "Успешность"
         })
-        
+
         st.dataframe(
             range_stats[["Диапазон", "Лотов", "Ср.превыш", "Мед.превыш", "Макс.превыш", "Успешность"]],
             use_container_width=True,
             hide_index=True
         )
-        
+
         # Корреляция
-        corr = df_has[df_has["участники"] > 0][["участники", "превышение_num"]].corr().iloc[0, 1]
-        st.caption(f"Корреляция (участники ↔ превышение): r = {corr:.3f}")
+        valid = df_has[(df_has["участники"] > 0) & (df_has["превышение_цены_%"] >= 0)]
+        if len(valid) > 1:
+            corr = valid[["участники", "превышение_цены_%"]].corr().iloc[0, 1]
+            st.caption(f"Корреляция (участники ↔ превышение): r = {corr:.3f}")
+
+        # Топ-5 по количеству участников
+        st.subheader("Топ-5 лотов по количеству участников")
+        top5 = df_has.nlargest(5, "участники")[["номер_лота", "адрес", "участники", "превышение_цены_%", "winner", "winner_price"]]
+        for _, row in top5.iterrows():
+            exc = f"+{row['превышение_цены_%']:.0f}%" if row["превышение_цены_%"] >= 0 else "Не состоялся"
+            winner = str(row.get("winner", ""))[:50] if pd.notna(row.get("winner")) else "—"
+            price = str(row.get("winner_price", ""))[:20] if pd.notna(row.get("winner_price")) else "—"
+            addr = str(row["адрес"])[:50]
+            st.markdown(f"**#{int(row['номер_лота'])}** — {int(row['участники'])} уч., {exc}, победитель: {winner}, цена: {price}\n\n📍 {addr}")
     else:
         st.info("Нет данных об участниках для отфильтрованных лотов")
 else:
-    st.info("Файл с данными об участниках не найден")
+    st.info("Данные об участниках не найдены")
 
 # ═══════════════════════════════════════════════
 #  ТАБЛИЦА ДАННЫХ
@@ -570,11 +612,25 @@ filtered["превышение_display"] = filtered["превышение_цен
 filtered["ссылка_на_лот"] = filtered["url"].fillna("")
 
 # Добавляем колонку с количеством участников
-if os.path.exists(proto_path):
-    df_proto = pd.read_csv(proto_path, encoding="utf-8-sig")
-    df_proto["lot_id"] = df_proto["lot_id"].astype(int)
+if os.path.exists(PROTO_JSON_PATH):
+    import json
+    with open(PROTO_JSON_PATH, "r", encoding="utf-8") as f:
+        cache_data = json.load(f)
+    rows = []
+    for lot_id, data in cache_data.items():
+        row = {"lot_id": int(lot_id)}
+        row.update(data)
+        rows.append(row)
+    df_proto_full = pd.DataFrame(rows)
+elif os.path.exists(PROTO_CSV_PATH):
+    df_proto_full = pd.read_csv(PROTO_CSV_PATH, encoding="utf-8-sig")
+else:
+    df_proto_full = None
+
+if df_proto_full is not None:
+    df_proto_full["lot_id"] = df_proto_full["lot_id"].astype(int)
     filtered = filtered.merge(
-        df_proto[["lot_id", "participants_count"]],
+        df_proto_full[["lot_id", "participants_count", "winner", "winner_price"]],
         left_on="номер_лота",
         right_on="lot_id",
         how="left"
@@ -584,9 +640,11 @@ if os.path.exists(proto_path):
     )
 else:
     filtered["участники"] = None
+    filtered["winner"] = None
+    filtered["winner_price"] = None
 
 display_cols = [
-    "превышение_display", "участники", "ссылка_на_лот", "номер_лота", "адрес", "площадь_м²",
+    "превышение_display", "участники", "winner", "winner_price", "ссылка_на_лот", "номер_лота", "адрес", "площадь_м²",
     "начальная_цена_руб", "итоговая_цена_руб", "этаж", "метро", "округ_код",
     "статус_торга"
 ]
@@ -598,6 +656,8 @@ st.dataframe(
     column_config={
         "превышение_display": "Превышение",
         "участники": "Участники",
+        "winner": "Победитель",
+        "winner_price": "Цена победителя",
         "ссылка_на_лот": st.column_config.LinkColumn("Лот", width="small"),
         "номер_лота": None,
         "lot_id": None,

@@ -1,0 +1,11 @@
+# Протоколы (бинарные файлы)
+data/protocols/*.pdf
+data/protocols/*.docx
+
+# Кэш (опционально, можно не пушить)
+# data/protocols/protocol_cache.json
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
