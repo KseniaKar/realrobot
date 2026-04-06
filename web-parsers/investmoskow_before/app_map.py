@@ -13,6 +13,7 @@ from streamlit_folium import st_folium
 import io
 import base64
 import os
+import json
 
 # Определяем базовую директорию
 # Если запущено из поддиректории (web-parsers/investmoskow_before/), ищем данные там
@@ -167,10 +168,14 @@ OKRUG_SHORT = {
 
 df["округ_код"] = df["округ"].map(OKRUG_SHORT).fillna("Другое")
 
+df = df.merge(
+    pd.DataFrame([{'lot_id': int(k), 'participants_count': v.get('participants_count')} for k, v in json.load(open(PROTO_JSON_PATH, encoding='utf-8')).items()]),
+    left_on='номер_лота', right_on='lot_id', how='left'
+) if os.path.exists(PROTO_JSON_PATH) else df
+
 # ── Определение статуса ──
 def get_status(row):
-    # Если есть итоговая цена — торги состоялись (даже если цена упала)
-    if pd.isna(row["итоговая_цена_руб"]):
+    if pd.notna(row.get("participants_count")) and int(row["participants_count"]) == 0:
         return "Не состоялся"
     return "Состоялся"
 
@@ -178,19 +183,21 @@ df["статус_торга"] = df.apply(get_status, axis=1)
 
 # ── Цветовая функция ──
 def get_color(row):
-    """Серый для несостоявшихся, 0% = зелёный, >0% = жёлтый→красный"""
-    if row["статус_торга"] == "Не состоялся":
+    """Серый для 0 участников, синий для отрицательного превышения, 0% = зелёный, >0% = жёлтый→красный"""
+    pc = row.get("participants_count")
+    if pd.notna(pc) and int(pc) == 0:
         return "#4a4a4a"  # тёмно-серый
 
     pct = row["превышение_цены_%"]
+    # Отрицательное превышение = синий
+    if pct < 0:
+        return "#3498db"  # синий
+
     # 0% = зелёный
     if pct <= 0:
         return "#2ecc71"
 
-    # Любое превышение > 0: жёлтый (малое) → красный (большое)
-    # Нормализация: 0-200% → 0-1
     norm = min(pct / 200.0, 1.0)
-    # Жёлтый (241,214,33) → Красный (231,76,60)
     r = int(241 + (231 - 241) * norm)
     g = int(214 + (76 - 214) * norm)
     b = int(33 + (60 - 33) * norm)
@@ -313,21 +320,21 @@ st.title("Карта торгов investmoscow.ru")
 st.caption("Нежилые помещения, торги 2025–2026")
 
 # Статистика
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric("Всего лотов", len(filtered))
 with col2:
-    if len(filtered[filtered["итоговая_цена_руб"].notna()]) > 0:
+    n_successful = len(filtered[filtered["статус_торга"] == "Состоялся"])
+    st.metric("Состоялись", n_successful)
+with col3:
+    n_failed = len(filtered[filtered["статус_торга"] == "Не состоялся"])
+    st.metric("Не состоялись", n_failed)
+with col4:
+    if n_successful > 0:
         avg_excess = filtered[filtered["превышение_цены_%"] >= 0]["превышение_цены_%"].mean()
         st.metric("Ср. превышение", f"+{avg_excess:.1f}%")
     else:
         st.metric("Ср. превышение", "—")
-with col3:
-    if len(filtered[filtered["итоговая_цена_руб"].notna()]) > 0:
-        avg_price_m2 = filtered[filtered["итоговая_цена_руб"].notna()]["цена_за_м²"].mean()
-        st.metric("Ср. цена за м²", f"{avg_price_m2/1e3:.0f}K ₽")
-    else:
-        st.metric("Ср. цена за м²", "—")
 
 # ═══════════════════════════════════════════════
 #  КАРТА
