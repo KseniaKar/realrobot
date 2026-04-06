@@ -390,6 +390,7 @@ for _, row in filtered.iterrows():
             <tr><td><b>Итоги:</b></td><td> {row.get('дата_подведения_итогов', '—')}</td></tr>
         </table>
         {'<br><a href="' + str(row['platformLink']) + '" target="_blank" style="color: #1a73e8;">→ Подробнее на roseltorg.ru</a>' if pd.notna(row['platformLink']) else ''}
+        {'<br><a href="https://investmoscow.ru/tenders/tender/' + str(row['номер_лота']) + '" target="_blank" style="color: #1a73e8;">→ Подробнее на investmoscow.ru</a>' if pd.notna(row['номер_лота']) else ''}
     </div>
     """
 
