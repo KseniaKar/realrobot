@@ -32,7 +32,6 @@ def parse_protocol_pdf(filepath):
 
     result = {
         "participants_count": 0,
-        "real_participants": 0,  # Реально участвовавших в торгах
         "winner": "",
         "winner_price": "",
         "winner_price_num": None,
@@ -128,22 +127,6 @@ def parse_protocol_pdf(filepath):
         participant_lines = re.findall(r'^\d{5,}\s+.+', all_text, re.MULTILINE)
         result["participants_count"] = len(participant_lines)
 
-    # Считаем реально участвовавших (таблица с предложениями о цене)
-    for page in pdf.pages:
-        tables = page.extract_tables()
-        for table in tables:
-            if table and len(table) > 1 and len(table[0]) >= 2:
-                header = " ".join(str(c).lower() for c in table[0])
-                if 'предложение' in header and 'цен' in header:
-                    # Это таблица предложений о цене
-                    result["real_participants"] = len(table) - 1
-                    break
-            elif table and len(table) > 1:
-                header = str(table[0][0]).lower() if table[0][0] else ""
-                if 'порядковый' in header and 'мест' in header:
-                    result["real_participants"] = len(table) - 1
-                    break
-
     pdf.close()
     return result
 
@@ -157,7 +140,6 @@ def parse_protocol_docx(filepath):
     
     result = {
         "participants_count": 0,
-        "real_participants": 0,  # Реально участвовавших в торгах
         "winner": "",
         "winner_price": "",
         "winner_price_num": None,
@@ -250,17 +232,6 @@ def parse_protocol_docx(filepath):
         applicant_mentions = re.findall(r'[Зз]аявка\s*№?\s*\d+', all_text)
         if applicant_mentions and len(applicant_mentions) > result["participants_count"]:
             result["participants_count"] = len(applicant_mentions)
-
-    # Считаем реально участвовавших (таблица с предложениями о цене)
-    for table in doc.tables:
-        if len(table.rows) > 1 and len(table.columns) >= 2:
-            header_text = " ".join(c.text.strip().lower() for c in table.rows[0].cells)
-            if 'предложение' in header_text and 'цен' in header_text:
-                result["real_participants"] = len(table.rows) - 1
-                break
-            elif 'порядковый' in header_text and 'мест' in header_text:
-                result["real_participants"] = len(table.rows) - 1
-                break
 
     return result
 
