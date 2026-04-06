@@ -489,7 +489,7 @@ else:
 
 if df_proto is not None and "participants_count" in df_proto.columns:
     df_proto["lot_id"] = df_proto["lot_id"].astype(int)
-    df_proto = df_proto[["lot_id", "participants_count", "winner", "winner_price"]].copy()
+    df_proto = df_proto[["lot_id", "participants_count", "real_participants", "winner", "winner_price"]].copy()
 
     # Объединяем с основными данными
     df_merged = df.merge(df_proto, left_on="номер_лота", right_on="lot_id", how="left")
@@ -660,11 +660,14 @@ if df_proto_full is not None:
     filtered["участники"] = filtered["participants_count"].apply(
         lambda x: int(x) if pd.notna(x) else None
     )
+    filtered["реально_участвовало"] = filtered["real_participants"].apply(
+        lambda x: int(x) if pd.notna(x) else None
+    )
 else:
     filtered["участники"] = None
 
 display_cols = [
-    "превышение_display", "участники", "ссылка_на_лот", "номер_лота", "адрес", "площадь_м²",
+    "превышение_display", "участники", "реально_участвовало", "ссылка_на_лот", "номер_лота", "адрес", "площадь_м²",
     "начальная_цена_руб", "итоговая_цена_руб", "этаж", "метро", "округ_код",
     "статус_торга"
 ]
@@ -675,7 +678,8 @@ st.dataframe(
     hide_index=True,
     column_config={
         "превышение_display": "Превышение",
-        "участники": "Участники",
+        "участники": "Допущено",
+        "реально_участвовало": "Участвовало",
         "ссылка_на_лот": st.column_config.LinkColumn("Лот", width="small"),
         "номер_лота": None,
         "lot_id": None,
