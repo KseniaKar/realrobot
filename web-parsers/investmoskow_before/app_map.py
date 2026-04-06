@@ -422,24 +422,24 @@ st.subheader("Легенда")
 col_l1, col_l2 = st.columns(2)
 
 with col_l1:
-    st.markdown("**Цвет точки = превышение цены**")
+    st.markdown("**Цвет точки = статус торгов**")
     st.markdown(
         """
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #4a4a4a;"></span>
-            <span>Торг не состоялся</span>
+            <span>0 участников (не состоялся)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
+            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #3498db;"></span>
+            <span>Отрицательное превышение (снижение цены)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #2ecc71;"></span>
-            <span>0% (без превышения)</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
-            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #f1d621;"></span>
-            <span>~50% (небольшое превышение)</span>
+            <span>0% (стартовая цена)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #e74c3c;"></span>
-            <span>200%+ (высокое превышение)</span>
+            <span>Высокое превышение (>100%)</span>
         </div>
         """,
         unsafe_allow_html=True
@@ -544,7 +544,7 @@ if df_proto is not None and "participants_count" in df_proto.columns:
 
         # Статистика по диапазонам
         def range_participants(n):
-            if n == 0: return "Не состоялись"
+            if n == 0: return "0 участников"
             elif n == 1: return "1 участник"
             elif n == 2: return "2 участника"
             elif n == 3: return "3 участника"
@@ -563,7 +563,7 @@ if df_proto is not None and "participants_count" in df_proto.columns:
             success_rate=("exc_num", lambda x: (x >= 0).sum() / len(x) * 100)
         ).reset_index()
 
-        order = ["Не состоялись", "1 участник", "2 участника", "3 участника", "4-5 участников",
+        order = ["0 участников", "1 участник", "2 участника", "3 участника", "4-5 участников",
                  "6-10 участников", "11-15 участников", "16-20 участников", "20+ участников", "Нет протокола"]
         range_stats["sort_key"] = range_stats["диапазон"].map({v: i for i, v in enumerate(order)})
         range_stats = range_stats.dropna(subset=["sort_key"]).sort_values("sort_key")
@@ -585,8 +585,8 @@ if df_proto is not None and "participants_count" in df_proto.columns:
             }])
             range_stats = pd.concat([range_stats, new_row], ignore_index=True)
 
-        # Форматирование: прочерки для "Не состоялись" и "1 участник"
-        no_excess_ranges = ["Не состоялись", "1 участник", "Нет протокола"]
+        # Форматирование: прочерки для "0 участников" и "1 участник"
+        no_excess_ranges = ["0 участников", "1 участник", "Нет протокола"]
         def fmt_excess(val, range_name):
             if range_name in no_excess_ranges:
                 return "—"
@@ -600,7 +600,7 @@ if df_proto is not None and "participants_count" in df_proto.columns:
         range_stats["median_excess"] = range_stats.apply(lambda r: fmt_excess(r["median_excess"], r["диапазон"]), axis=1)
         range_stats["max_excess"] = range_stats.apply(lambda r: fmt_excess(r["max_excess"], r["диапазон"]), axis=1)
         range_stats["success_rate"] = range_stats.apply(
-            lambda r: "—" if r["диапазон"] == "Не состоялись" else f"{r['success_rate']:.0f}%", axis=1
+            lambda r: "—" if r["диапазон"] in ["0 участников", "Нет протокола"] else f"{r['success_rate']:.0f}%", axis=1
         )
         range_stats = range_stats.rename(columns={
             "диапазон": "Диапазон",
