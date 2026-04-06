@@ -196,6 +196,7 @@ def parse_protocol_docx(filepath):
             pass
     
     # Количество участников из таблицы
+    table_found = False
     for table in doc.tables:
         if len(table.rows) > 1 and len(table.columns) >= 2:
             # Собираем текст из всех ячеек первой строки
@@ -216,12 +217,21 @@ def parse_protocol_docx(filepath):
                     # Если вторая строка выглядит как порядковый номер (цифра) или номер заявки — это таблица участников
                     if re.match(r'^\d+$', first_data) or re.match(r'^\d{5,}$', first_data):
                         result["participants_count"] = len(table.rows) - 1
+                        table_found = True
                         break
             # Проверяем: первая строка = данные (номер заявки без заголовка)
             elif re.match(r'^\d{5,}$', table.rows[0].cells[0].text.strip()):
                 # Это таблица участников без заголовка
                 result["participants_count"] = len(table.rows)
+                table_found = True
                 break
+
+    # Если таблица не дала результат или дала 1 участника — проверяем текст
+    if result["participants_count"] <= 1:
+        # Ищем "Заявка № XXXXXX" или "Заявка №XXXXXX"
+        applicant_mentions = re.findall(r'[Зз]аявка\s*№?\s*\d+', all_text)
+        if applicant_mentions and len(applicant_mentions) > result["participants_count"]:
+            result["participants_count"] = len(applicant_mentions)
 
     return result
 
