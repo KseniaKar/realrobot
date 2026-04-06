@@ -192,9 +192,9 @@ def get_color(row):
     if (pd.notna(pc) and int(pc) == 0) or pct < 0:
         return "#4a4a4a"  # тёмно-серый
 
-    # 0% = зелёный
+    # 0% = жёлтый
     if pct <= 0:
-        return "#2ecc71"
+        return "#f1d621"
 
     norm = min(pct / 200.0, 1.0)
     r = int(241 + (231 - 241) * norm)
@@ -430,7 +430,7 @@ with col_l1:
             <span>Не состоялись (0 участников или снижение цены)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
-            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #2ecc71;"></span>
+            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #f1d621;"></span>
             <span>0% (стартовая цена)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
