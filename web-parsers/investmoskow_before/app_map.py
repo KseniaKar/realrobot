@@ -492,25 +492,27 @@ if df_proto is not None and "participants_count" in df_proto.columns:
     df_has = df_has[df_has["превышение_цены_%"] >= -1].copy()
 
     if len(df_has) > 0:
-        # Scatter plot
-        fig, ax = plt.subplots(figsize=(12, 5))
-        scatter = ax.scatter(
-            df_has["участники"],
-            df_has["превышение_цены_%"],
-            c=df_has["превышение_цены_%"],
-            cmap="RdYlBu_r",
-            s=np.clip(df_has["площадь_м²"] * 0.3, 20, 300),
-            alpha=0.7,
-            edgecolors="gray",
-            linewidth=0.3
-        )
-        ax.set_xlabel("Количество участников")
-        ax.set_ylabel("Превышение цены, %")
-        ax.set_title(f"Зависимость превышения цены от количества участников (N={len(df_has)})")
-        cbar = plt.colorbar(scatter, ax=ax)
-        cbar.set_label("Превышение, %")
-        st.pyplot(fig)
-        plt.close()
+        # Scatter plot — только лоты с участниками > 0
+        df_plot = df_has[df_has["участники"] > 0].copy()
+        if len(df_plot) > 0:
+            fig, ax = plt.subplots(figsize=(12, 5))
+            scatter = ax.scatter(
+                df_plot["участники"],
+                df_plot["превышение_цены_%"],
+                c=df_plot["превышение_цены_%"],
+                cmap="RdYlBu_r",
+                s=np.clip(df_plot["площадь_м²"] * 0.3, 20, 300),
+                alpha=0.7,
+                edgecolors="gray",
+                linewidth=0.3
+            )
+            ax.set_xlabel("Количество участников")
+            ax.set_ylabel("Превышение цены, %")
+            ax.set_title(f"Зависимость превышения цены от количества участников (N={len(df_plot)})")
+            cbar = plt.colorbar(scatter, ax=ax)
+            cbar.set_label("Превышение, %")
+            st.pyplot(fig)
+            plt.close()
 
         # Статистика по диапазонам
         def range_participants(n):
