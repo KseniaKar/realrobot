@@ -574,7 +574,7 @@ if df_proto is not None and "participants_count" in df_proto.columns:
         range_stats["median_excess"] = range_stats.apply(lambda r: fmt_excess(r["median_excess"], r["диапазон"]), axis=1)
         range_stats["max_excess"] = range_stats.apply(lambda r: fmt_excess(r["max_excess"], r["диапазон"]), axis=1)
         range_stats["success_rate"] = range_stats.apply(
-            lambda r: "—" if r["диапазон"] in no_excess_ranges else f"{r['success_rate']:.0f}%", axis=1
+            lambda r: "—" if r["диапазон"] == "Не состоялись" else f"{r['success_rate']:.0f}%", axis=1
         )
         range_stats = range_stats.rename(columns={
             "диапазон": "Диапазон",
