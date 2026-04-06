@@ -474,37 +474,6 @@ with col_l2:
     )
 
 # ═══════════════════════════════════════════════
-#  АНАЛИЗ: аналитика по этажам
-# ═══════════════════════════════════════════════
-st.subheader("Аналитика по этажам")
-
-# Фильтруем лоты с итоговой ценой
-df_sold = df[df["итоговая_цена_руб"].notna()].copy()
-if len(df_sold) > 0:
-    # Группируем по этажу
-    floor_stats = df_sold.groupby("этаж").agg(
-        lot_count=("номер_лота", "count"),
-        avg_price_m2=("цена_за_м²", "mean"),
-        avg_excess=("превышение_цены_%", "mean")
-    ).reset_index()
-    floor_stats = floor_stats.dropna(subset=["этаж"])
-    floor_stats = floor_stats.sort_values("avg_excess", ascending=False)
-    floor_stats["avg_excess"] = floor_stats["avg_excess"].apply(lambda x: f"+{x:.1f}%" if pd.notna(x) and x >= 0 else "—")
-    floor_stats["avg_price_m2"] = floor_stats["avg_price_m2"].apply(lambda x: f"{x/1e3:.0f}K ₽" if pd.notna(x) else "—")
-    floor_stats = floor_stats.rename(columns={
-        "этаж": "Этаж",
-        "lot_count": "Лотов",
-        "avg_excess": "Ср.превыш",
-        "avg_price_m2": "Ср.цена/м²"
-    })
-    
-    st.dataframe(
-        floor_stats[["Этаж", "Лотов", "Ср.превыш", "Ср.цена/м²"]],
-        use_container_width=True,
-        hide_index=True
-    )
-
-# ═══════════════════════════════════════════════
 #  АНАЛИЗ: превышение vs участники
 # ═══════════════════════════════════════════════
 st.subheader("Превышение цены от количества участников")
