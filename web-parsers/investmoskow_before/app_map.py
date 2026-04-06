@@ -175,7 +175,8 @@ df = df.merge(
 
 # ── Определение статуса ──
 def get_status(row):
-    if pd.notna(row.get("participants_count")) and int(row["participants_count"]) == 0:
+    # Нет итоговой цены = не состоялся
+    if pd.isna(row.get("итоговая_цена_руб")):
         return "Не состоялся"
     return "Состоялся"
 
@@ -183,7 +184,7 @@ df["статус_торга"] = df.apply(get_status, axis=1)
 
 # ── Цветовая функция ──
 def get_color(row):
-    """Серый для несостоявшихся (0 участников или отрицательное превышение), 0% = зелёный, >0% = жёлтый→красный"""
+    """Серый для 0 участников или отрицательного превышения, 0% = зелёный, >0% = жёлтый→красный"""
     pc = row.get("participants_count")
     pct = row["превышение_цены_%"]
     
@@ -491,11 +492,8 @@ if df_proto is not None and "participants_count" in df_proto.columns:
     # Используем filtered (там уже есть participants_count из раннего merge)
     df_merged = filtered.copy()
 
-    # Если нет данных об участниках, но нет и итоговой цены — считаем, что участников 0
-    if 'итоговая_цена_руб' in df_merged.columns and 'participants_count' in df_merged.columns:
-        mask_failed_no_data = (df_merged['participants_count'].isna()) & (df_merged['итоговая_цена_руб'].isna())
-        df_merged.loc[mask_failed_no_data, 'participants_count'] = 0
-
+    # НЕ меняем participants_count — считаем как есть
+    # 0 = реально 0 участников, NaN = нет данных (Нет протокола)
     df_has = df_merged[df_merged["participants_count"].notna()].copy()
     df_has["участники"] = df_has["participants_count"].astype(int)
 
