@@ -3,7 +3,6 @@ data/protocols/*.pdf
 data/protocols/*.docx
 
 # Кэш и временные файлы
-data/protocols/protocol_cache.json
 data/protocols/protocol_results.rtf
 data/protocols/protocol_review.rtf
 

@@ -81,7 +81,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Загрузка данных ──
-@st.cache_data
+@st.cache_data(ttl=3600)
 def load_data():
     csv_path = os.path.join(BASE_DIR, "data", "investmoscow_completed_2026-04-04_geocoded.csv")
     if not os.path.exists(csv_path):
