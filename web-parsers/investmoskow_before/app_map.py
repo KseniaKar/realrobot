@@ -516,7 +516,7 @@ if df_proto is not None and "participants_count" in df_proto.columns:
 
         # Статистика по диапазонам
         def range_participants(n):
-            if n == 0: return "0 (без борьбы)"
+            if n == 0: return "Не состоялись"
             elif n == 1: return "1 участник"
             elif n == 2: return "2 участника"
             elif n == 3: return "3 участника"
@@ -535,7 +535,7 @@ if df_proto is not None and "participants_count" in df_proto.columns:
             success_rate=("превышение_цены_%", lambda x: (x >= 0).sum() / len(x) * 100)
         ).reset_index()
 
-        order = ["0 (без борьбы)", "1 участник", "2 участника", "3 участника", "4-5 участников",
+        order = ["Не состоялись", "1 участник", "2 участника", "3 участника", "4-5 участников",
                  "6-10 участников", "11-15 участников", "16-20 участников", "20+ участников"]
         range_stats["sort_key"] = range_stats["диапазон"].map({v: i for i, v in enumerate(order)})
         range_stats = range_stats.dropna(subset=["sort_key"]).sort_values("sort_key")
