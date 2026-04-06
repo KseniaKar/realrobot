@@ -183,15 +183,13 @@ df["статус_торга"] = df.apply(get_status, axis=1)
 
 # ── Цветовая функция ──
 def get_color(row):
-    """Серый для 0 участников, синий для отрицательного превышения, 0% = зелёный, >0% = жёлтый→красный"""
+    """Серый для несостоявшихся (0 участников или отрицательное превышение), 0% = зелёный, >0% = жёлтый→красный"""
     pc = row.get("participants_count")
-    if pd.notna(pc) and int(pc) == 0:
-        return "#4a4a4a"  # тёмно-серый
-
     pct = row["превышение_цены_%"]
-    # Отрицательное превышение = синий
-    if pct < 0:
-        return "#3498db"  # синий
+    
+    # 0 участников ИЛИ отрицательное превышение = серый
+    if (pd.notna(pc) and int(pc) == 0) or pct < 0:
+        return "#4a4a4a"  # тёмно-серый
 
     # 0% = зелёный
     if pct <= 0:
@@ -427,11 +425,7 @@ with col_l1:
         """
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #4a4a4a;"></span>
-            <span>0 участников (не состоялся)</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
-            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #3498db;"></span>
-            <span>Отрицательное превышение (снижение цены)</span>
+            <span>Не состоялись (0 участников или снижение цены)</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #2ecc71;"></span>
@@ -677,7 +671,7 @@ elif os.path.exists(PROTO_CSV_PATH):
 else:
     df_proto_full = None
 
-if df_proto_full is not None:
+if df_proto_full is not None and "participants_count" not in filtered.columns:
     df_proto_full["lot_id"] = df_proto_full["lot_id"].astype(int)
     filtered = filtered.merge(
         df_proto_full[["lot_id", "participants_count"]],
@@ -685,6 +679,8 @@ if df_proto_full is not None:
         right_on="lot_id",
         how="left"
     )
+
+if "participants_count" in filtered.columns:
     filtered["участники"] = filtered["participants_count"].apply(
         lambda x: int(x) if pd.notna(x) else None
     )
