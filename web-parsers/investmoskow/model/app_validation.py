@@ -15,8 +15,9 @@ warnings.filterwarnings('ignore')
 
 st.set_page_config(page_title="Валидация Look-Alike", page_icon="🎯", layout="wide")
 
-MODEL_DIR = Path("model")
-COMPLETED_DIR = Path("../investmoskow_before/data")
+# Use absolute path relative to this script
+MODEL_DIR = Path(__file__).parent
+COMPLETED_DIR = MODEL_DIR  # Data files are now in the model folder
 
 # ============================================================
 # ЗАГРУЗКА ДАННЫХ И МОДЕЛЕЙ
