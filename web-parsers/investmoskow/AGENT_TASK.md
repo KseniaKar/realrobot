@@ -1,7 +1,5 @@
 # investmoscow — Look-Alike модель для предсказания превышения цены
 
-**Дата:** 7 апреля 2026  
-**Статус:** Модель готова, валидация на holdout завершена  
 **Streamlit:** `python -m streamlit run model/app_validation.py`
 
 ---
