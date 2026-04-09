@@ -183,7 +183,6 @@ with st.spinner("Загрузка..."):
     model, knn, scaler, features, df_train_geo, y_train = load_models(df_train)
 
 # Предвычисление предсказаний для всех holdout лотов (CatBoost — основная модель)
-@st.cache_data
 def precompute_predictions(df_holdout, model, scaler, features, df_train):
     df_h = df_holdout[df_holdout['real_excess'].notna()].copy()
     predictions = []
