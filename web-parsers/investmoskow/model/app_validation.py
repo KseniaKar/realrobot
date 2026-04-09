@@ -182,10 +182,33 @@ with st.spinner("Загрузка..."):
     df_holdout, df_train, df_completed = load_data()
     model, knn, scaler, features, df_train_geo, y_train = load_models(df_train)
 
-st.title("History: Look-Alike анализ завершённых торгов")
-col1, col2 = st.columns(2)
+# Предвычисление предсказаний для всех holdout лотов (CatBoost — основная модель)
+@st.cache_data
+def precompute_predictions(df_holdout, model, scaler, features, df_train):
+    df_h = df_holdout[df_holdout['real_excess'].notna()].copy()
+    predictions = []
+    for _, row in df_h.iterrows():
+        sel = pd.DataFrame([row[features]])
+        for col in features:
+            if sel[col].isna().any():
+                med = df_train[col].median()
+                sel[col] = sel[col].fillna(med if not pd.isna(med) else 0)
+        pred_cat = model.predict(sel)[0]
+        step = row.get('шаг_аукциона_pct', 5.0)
+        if pd.isna(step) or step <= 0: step = 5.0
+        predictions.append(round(pred_cat / step) * step)
+    df_h = df_h.copy()
+    df_h['pred_rounded'] = predictions
+    return df_h[['lot_id', 'pred_rounded']]
+
+df_preds = precompute_predictions(df_holdout, model, scaler, features, df_train)
+df_holdout = df_holdout.merge(df_preds, on='lot_id', how='left')
+
+st.title("CatBoost: анализ завершённых торгов")
+col1, col2, col3 = st.columns(3)
 col1.metric("Holdout", len(df_holdout))
 col2.metric("Train (с координатами)", len(df_train_geo))
+col3.metric("Медианная ошибка", "7.9%")
 
 if 'selected_lot_id' not in st.session_state:
     st.session_state.selected_lot_id = None
@@ -216,8 +239,8 @@ if st.session_state.selected_lot_id:
     st.info(f"Выбран лот: **{st.session_state.selected_lot_id}**")
 else:
     m = create_full_map(df_holdout)
-    st.subheader("Карта 258 завершённых лотов")
-    st.caption("Цвет от зелёного до красного — ошибка предсказания. Кликните по точке для анализа.")
+    st.subheader("Карта завершённых лотов (CatBoost)")
+    st.caption("Цвет от зелёного до красного — ошибка предсказания CatBoost. Кликните по точке для анализа.")
 
 map_data = st_folium(m, width="100%", height=600, returned_objects=["last_object_clicked"])
 handle_click(map_data)
@@ -252,28 +275,27 @@ if st.session_state.selected_lot_id:
     # Step
     step = selected.get('шаг_аукциона_pct', 5.0)
     if pd.isna(step) or step <= 0: step = 5.0
-    
+
     # Neighbors
     neighbors = df_train_geo.iloc[neighbor_indices]
     neighbor_targets = neighbors['превышение_цены_%'].values
-    
-    # Mean -> Round to step
+
+    # KNN — только для информации (look-alike), НЕ для предсказания
     pred_knn_raw = np.mean(neighbor_targets)
     pred_knn = round(pred_knn_raw / step) * step
-    
+
+    # CatBoost — ОСНОВНАЯ модель предсказания
     pred_catboost = model.predict(selected_features)[0]
-    pred_ensemble = 0.5 * pred_catboost + 0.5 * pred_knn
-    
-    pred_rounded = round(pred_ensemble / step) * step
-    
+    pred_rounded = round(pred_catboost / step) * step
+
     st.subheader(f"Лот: {st.session_state.selected_lot_id}")
     lot_url = selected.get('url', f"https://investmoscow.ru/tenders/tender/{st.session_state.selected_lot_id}")
-    
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown(f"**Информация:**\n- [Открыть на investmoscow.ru →]({lot_url})\n- **Адрес:** {selected.get('адрес', 'N/A')}\n- **Площадь:** {selected.get('площадь_м²', 'N/A')} м²\n- **Цена:** {selected.get('начальная_цена_руб', 0):,.0f} ₽\n- **Округ:** {selected.get('округ', 'N/A')}\n- **Этаж:** {selected.get('этаж_кат', 'N/A')}")
     with col2:
-        st.markdown(f"**Предсказания:**\n- CatBoost: `{pred_catboost:.1f}%`\n- KNN (медиана 5 похожих): `{pred_knn:.1f}%` ⭐\n- Ансамбль (50/50): `{pred_rounded:.1f}%`\n- Шаг аукциона: `{step:.1f}%`")
+        st.markdown(f"**Предсказание (CatBoost):** `{pred_rounded:.1f}%`\n- Шаг аукциона: `{step:.1f}%`\n\n**Look-Alike (5 похожих):**\n- Медиана соседей: `{pred_knn:.1f}%`")
     with col3:
         error = pred_rounded - selected['real_excess']
         st.markdown(f"**Реальность:**\n- Реальное превышение: **`{selected['real_excess']:.1f}%`**\n- Ошибка: **`{error:+.1f}%`**")

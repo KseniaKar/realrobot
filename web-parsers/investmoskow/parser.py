@@ -3,6 +3,7 @@ import json
 import sys
 import csv
 import time
+import re
 import os
 from datetime import date
 from playwright.sync_api import sync_playwright
@@ -19,8 +20,15 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Content-Type": "application/json"
 }
+PAGE_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-FIELDNAMES = ["url", "площадь м²", "цена руб.", "адрес", "функциональное_назначение", "тип_входа", "этаж", "этажность", "метро"]
+FIELDNAMES = [
+    "url", "номер_лота", "площадь_м²", "начальная_цена_руб", "цена_за_м²",
+    "размер_задатка_руб", "шаг_аукциона_руб", "адрес", "кадастровый_номер",
+    "метро", "этаж", "этажность", "функциональное_назначение", "тип_входа",
+    "форма_проведения", "дата_начала_приёма", "дата_окончания_приёма",
+    "дата_проведения_торгов", "platformLink"
+]
 
 def format_area(value):
     if value is None:
@@ -58,6 +66,51 @@ def clean_floor(value):
         return cleaned
     return value
 
+def parse_tender_page(tender_id):
+    """Парсим HTML страницу лота для извлечения задатка, шага, кадастрового номера и дат"""
+    url = f"https://investmoscow.ru/tenders/tender/{tender_id}"
+    result = {
+        "кадастровый_номер": "",
+        "размер_задатка_руб": "",
+        "шаг_аукциона_руб": "",
+        "форма_проведения": "",
+        "дата_начала_приёма": "",
+        "дата_окончания_приёма": "",
+        "дата_проведения_торгов": "",
+    }
+
+    try:
+        resp = requests.get(url, headers=PAGE_HEADERS, timeout=15)
+        resp.raise_for_status()
+        text = resp.text
+
+        # Извлекаем label-value пары из встроенного JSON
+        pattern = r'\{"label":\d+,"value":\d+\},"([^"]*)","([^"]*)"'
+        data = {}
+        for label, value in re.findall(pattern, text):
+            data[label] = value
+
+        # Маппинг полей
+        field_mapping = {
+            "Кадастровый номер": "кадастровый_номер",
+            "Размер задатка": "размер_задатка_руб",
+            "Шаг аукциона": "шаг_аукциона_руб",
+            "Форма проведения": "форма_проведения",
+            "Дата начала приёма заявок": "дата_начала_приёма",
+            "Дата окончания приёма заявок": "дата_окончания_приёма",
+            "Проведение торгов": "дата_проведения_торгов",
+        }
+
+        for src_key, dst_key in field_mapping.items():
+            if src_key in data:
+                result[dst_key] = data[src_key]
+
+    except Exception as e:
+        print(f"   [WARN] Ошибка парсинга страницы {tender_id}: {e}")
+
+    return result
+
+
 def get_metro(subway_stations):
     if not subway_stations:
         return ""
@@ -69,11 +122,26 @@ def get_metro(subway_stations):
             stations.append(f"{name} ({time_walk} мин)")
     return "; ".join(stations)
 
+def migrate_row(row):
+    """Миграция старых записей в новый формат"""
+    if "площадь м²" in row:
+        row["площадь_м²"] = row.pop("площадь м²")
+    if "цена руб." in row:
+        row["начальная_цена_руб"] = row.pop("цена руб.")
+    # Добавляем отсутствующие поля
+    for field in FIELDNAMES:
+        if field not in row:
+            row[field] = ""
+    return row
+
 def load_progress():
     if os.path.exists(PROGRESS_FILE):
         with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {"parsed_urls": set(), "results": []}
+            data = json.load(f)
+        # Миграция старых записей
+        data["results"] = [migrate_row(r) for r in data.get("results", [])]
+        return data
+    return {"parsed_urls": [], "results": []}
 
 def save_progress(parsed_urls, results):
     data = {
@@ -128,46 +196,84 @@ def get_all_tenders():
     
     return all_tenders
 
-def parse_tender(tender):
+def parse_tender(tender, page_data=None):
     этаж = ""
     for param in tender.get("additionalParams", []):
         if param.get("name") == "Этаж":
             этаж = clean_floor(param.get("value", ""))
             break
-    
+
     тип_входа = ""
-    for param in tender.get("additionalParams", []):
-        if param.get("name") == "Тип входа":
-            тип_входа = param.get("value", "")
-            break
-    
+    entrance_codes = tender.get("entranceTypeCodes", [])
+    if entrance_codes:
+        mapping = {
+            "nsi:1032:103201": "Отдельный",
+            "nsi:1032:1032005": "Вход через места общего пользования",
+            "nsi:1032:1032006": "Вход через подъезд",
+        }
+        тип_входа = mapping.get(entrance_codes[0], entrance_codes[0])
+
     функциональное_назначение = ""
     purposes = tender.get("functionalityPurposes", [])
     if purposes:
         функциональное_назначение = purposes[0]
-    
+
     метро = get_metro(tender.get("subwayStations", []))
-    
+
     region = tender.get("regionName", "")
     district = tender.get("districtName", "")
     address = tender.get("address", "")
-    
+
     if region and district:
         district_short = district.replace("район", "р-н").replace("поселение", "пос.").strip()
         formatted_address = f"{region}, {district_short}, {address}"
     else:
         formatted_address = address
-    
+
+    # Вычисляемые поля
+    area = tender.get("objectArea", 0) or 0
+    start_price = tender.get("startPrice", 0) or 0
+    price_per_m2 = ""
+    if area > 0 and start_price > 0:
+        price_per_m2 = f"{(start_price / area):.2f}".replace(".", ",")
+
+    # Форма проведения
+    trade_form_id = tender.get("tradeFormId")
+    forms = {45001: "Аукцион", 45002: "Публичное предложение"}
+    форма_проведения = forms.get(trade_form_id, str(trade_form_id) if trade_form_id else "")
+
+    # Даты из API
+    request_start = tender.get("requestStartDate", "")
+    request_end = tender.get("requestEndDate", "")
+    tender_date = tender.get("tenderDate", "")
+
+    def parse_date_short(iso_str):
+        if not iso_str:
+            return ""
+        return iso_str.split("T")[0] if "T" in iso_str else iso_str
+
+    page_data = page_data or {}
+
     return {
         "url": f"https://investmoscow.ru/tenders/tender/{tender.get('id', '')}",
-        "площадь м²": format_area(tender.get("objectArea")),
-        "цена руб.": format_price(tender.get("startPrice")),
+        "номер_лота": str(tender.get("id", "")),
+        "площадь_м²": format_area(area),
+        "начальная_цена_руб": format_price(start_price),
+        "цена_за_м²": price_per_m2,
+        "размер_задатка_руб": page_data.get("размер_задатка_руб", ""),
+        "шаг_аукциона_руб": page_data.get("шаг_аукциона_руб", ""),
         "адрес": formatted_address,
-        "функциональное_назначение": функциональное_назначение,
-        "тип_входа": тип_входа,
+        "кадастровый_номер": page_data.get("кадастровый_номер", ""),
+        "метро": метро,
         "этаж": этаж,
         "этажность": format_floors(tender.get("floors")),
-        "метро": метро
+        "функциональное_назначение": функциональное_назначение,
+        "тип_входа": тип_входа,
+        "форма_проведения": page_data.get("форма_проведения") or форма_проведения,
+        "дата_начала_приёма": page_data.get("дата_начала_приёма") or parse_date_short(request_start),
+        "дата_окончания_приёма": page_data.get("дата_окончания_приёма") or parse_date_short(request_end),
+        "дата_проведения_торгов": page_data.get("дата_проведения_торгов") or parse_date_short(tender_date),
+        "platformLink": tender.get("platformLink", "")
     }
 
 def parse_cadastral_from_browser(url):
@@ -215,26 +321,30 @@ def main():
     total = len(tenders)
     for i, tender in enumerate(tenders, 1):
         url = f"https://investmoscow.ru/tenders/tender/{tender.get('id', '')}"
-        
+
         if url in parsed_urls:
             print(f"[{i}/{total}] Пропущено (уже распарсено): {url}")
             continue
-        
+
         print(f"[{i}/{total}] Обработка: {url}")
-        
-        row = parse_tender(tender)
+
+        # Парсим HTML страницу для задатка, шага, кадастрового номера
+        tender_id = tender.get("id")
+        page_data = parse_tender_page(tender_id) if tender_id else {}
+
+        row = parse_tender(tender, page_data)
         results.append(row)
         parsed_urls.add(url)
-        
-        print(f"   [OK] {row['площадь м²']} м², {row['цена руб.']} руб., {row['этаж']} этаж, {row['этажность']} этажность")
-        
-        # Сохранение прогресса каждые 20 объявлений
-        if i % 20 == 0:
+
+        print(f"   [OK] {row['площадь_м²']} м², {row['начальная_цена_руб']} руб., задатк: {row['размер_задатка_руб']}, шаг: {row['шаг_аукциона_руб']}")
+
+        # Сохранение прогресса каждые 10 объявлений (т.к. парсинг страниц медленнее)
+        if i % 10 == 0:
             save_progress(parsed_urls, results)
             save_to_csv(results)
             print(f"   [SAVE] Прогресс сохранён ({len(results)} записей)")
-        
-        time.sleep(0.3)
+
+        time.sleep(0.5)
     
     # Финальное сохранение
     save_progress(parsed_urls, results)
