@@ -92,7 +92,15 @@ st.markdown("""
 # ── Загрузка данных ──
 @st.cache_data(ttl=3600)
 def load_data():
-    csv_path = os.path.join(BASE_DIR, "data", "investmoscow_completed_2026-04-04_geocoded.csv")
+    mapped_csv_path = os.path.join(BASE_DIR, "data", "investmoscow_completed_2022_2026_geocoded_mapped.csv")
+    merged_csv_path = os.path.join(BASE_DIR, "data", "investmoscow_completed_2022_2026_geocoded.csv")
+    legacy_csv_path = os.path.join(BASE_DIR, "data", "investmoscow_completed_2026-04-04_geocoded.csv")
+    if os.path.exists(mapped_csv_path):
+        csv_path = mapped_csv_path
+    elif os.path.exists(merged_csv_path):
+        csv_path = merged_csv_path
+    else:
+        csv_path = legacy_csv_path
     if not os.path.exists(csv_path):
         st.error(f"Файл не найден: {csv_path}")
         st.error(f"BASE_DIR: {BASE_DIR}")
@@ -102,6 +110,7 @@ def load_data():
         st.stop()
     df = pd.read_csv(csv_path, encoding="utf-8-sig")
     # Убираем строки без координат
+    # Для fallback-файлов дополнительно отбрасываем строки без координат.
     df = df.dropna(subset=["latitude", "longitude"])
 
     # Превышение: "95.0%" → 95.0, NaN → -1
@@ -323,7 +332,7 @@ if selected_floors != all_floors:
 #  ОСНОВНОЙ ЭКРАН
 # ═══════════════════════════════════════════════
 st.title("Карта торгов investmoscow.ru")
-st.caption("Нежилые помещения, торги 2025–2026")
+st.caption("Нежилые помещения, торги 2022–2026")
 
 # Статистика
 n_successful = len(filtered[filtered["статус_торга"] == "Состоялся"])
@@ -645,7 +654,7 @@ csv_data = filtered[["номер_лота", "адрес", "площадь_м²",
 st.download_button(
     label="Скачать CSV",
     data=csv_data,
-    file_name="investmoscow_filtered.csv",
+    file_name="investmoscow_filtered_2022_2026.csv",
     mime="text/csv"
 )
 
