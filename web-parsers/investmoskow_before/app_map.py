@@ -14,6 +14,7 @@ import io
 import base64
 import os
 import json
+import re
 
 # Определяем базовую директорию
 # Если запущено из поддиректории (web-parsers/investmoskow_before/), ищем данные там
@@ -138,6 +139,76 @@ def load_data():
     return df
 
 df = load_data()
+
+
+def normalize_floor(value):
+    if pd.isna(value):
+        return "Не указано"
+
+    raw = str(value).replace("\xa0", " ").strip()
+    if not raw:
+        return "Не указано"
+
+    lower = raw.lower()
+
+    if "," in lower:
+        return "Многоуровневый"
+
+    if " и выше" in lower:
+        return "Многоуровневый"
+
+    if "подвал" in lower or re.fullmatch(r"-\d+", lower):
+        return "Подвал"
+
+    if "цок" in lower:
+        return "Цоколь"
+
+    if "антрес" in lower:
+        return "Антресоль"
+
+    if "мансард" in lower:
+        return "Мансарда"
+
+    if "чердак" in lower:
+        return "Чердак"
+
+    if "тех" in lower:
+        return "Техэтаж"
+
+    if "мезонин" in lower:
+        return "Мезонин"
+
+    match = re.search(r"\d+", lower)
+    if match:
+        num = int(match.group())
+        if num == 0:
+            return "0 этаж"
+        if num >= 5:
+            return "5+ этаж"
+        return f"{num} этаж"
+
+    return raw
+
+
+FLOOR_ORDER = [
+    "Подвал",
+    "Цоколь",
+    "0 этаж",
+    "1 этаж",
+    "2 этаж",
+    "3 этаж",
+    "4 этаж",
+    "5+ этаж",
+    "Антресоль",
+    "Мансарда",
+    "Чердак",
+    "Техэтаж",
+    "Мезонин",
+    "Многоуровневый",
+    "Не указано",
+]
+
+df["этаж_норм"] = df["этаж"].apply(normalize_floor)
 
 # ── Пути к данным об участниках ──
 PROTO_CSV_PATH = os.path.join(BASE_DIR, "data", "protocols", "participants_data.csv")
@@ -282,18 +353,11 @@ excess_range = st.sidebar.slider(
 )
 
 # Этаж
-all_floors = sorted(df["этаж"].dropna().unique())
-floor_labels = {
-    "1": "1 этаж",
-    "2": "2 этаж",
-    "Подвал": "Подвал",
-    "Цоколь": "Цоколь",
-}
+all_floors = [floor for floor in FLOOR_ORDER if floor in set(df["этаж_норм"].dropna().unique())]
 selected_floors = st.sidebar.multiselect(
     "Этаж",
     options=all_floors,
     default=all_floors,
-    format_func=lambda x: floor_labels.get(str(x), str(x))
 )
 
 # ═══════════════════════════════════════════════
@@ -326,7 +390,7 @@ filtered = filtered[
 ]
 
 if selected_floors != all_floors:
-    filtered = filtered[filtered["этаж"].isin(selected_floors)]
+    filtered = filtered[filtered["этаж_норм"].isin(selected_floors)]
 
 # ═══════════════════════════════════════════════
 #  ОСНОВНОЙ ЭКРАН
@@ -396,7 +460,8 @@ for _, row in filtered.iterrows():
             {participants_text}
             {winner_text}
             <tr><td><b>Превышение:</b></td><td style="color: {'green' if row['превышение_цены_%'] >= 0 else 'gray'}; font-weight: bold;"> {excess_text}</td></tr>
-            <tr><td><b>Этаж:</b></td><td> {row['этаж']}</td></tr>
+            <tr><td><b>Этаж:</b></td><td> {row['этаж_норм']}</td></tr>
+            <tr><td><b>Как в источнике:</b></td><td> {row['этаж']}</td></tr>
             <tr><td><b>Метро:</b></td><td> {row['метро']}</td></tr>
             <tr><td><b>Округ:</b></td><td> {row['округ_код']}</td></tr>
         </table>
@@ -649,7 +714,7 @@ st.caption(f"Показано {len(filtered)} из {len(df)} записей")
 
 # Кнопка скачивания
 csv_data = filtered[["номер_лота", "адрес", "площадь_м²", "начальная_цена_руб",
-                      "итоговая_цена_руб", "превышение_цены_%", "этаж", "метро",
+                      "итоговая_цена_руб", "превышение_цены_%", "этаж_норм", "метро",
                       "округ_код", "статус_торга", "latitude", "longitude"]].to_csv(index=False, encoding="utf-8-sig")
 st.download_button(
     label="Скачать CSV",
@@ -709,7 +774,7 @@ else:
 
 display_cols = [
     "превышение_display", "участники", "ссылка_на_лот", "номер_лота", "адрес", "площадь_м²",
-    "начальная_цена_руб", "итоговая_цена_руб", "этаж", "метро", "округ_код",
+    "начальная_цена_руб", "итоговая_цена_руб", "этаж_норм", "метро", "округ_код",
     "статус_торга"
 ]
 st.dataframe(
