@@ -13,8 +13,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-12-property-goals-enriched-v3"
+APP_BUILD = "2026-04-12-property-goals-enriched-geo-v4"
 BASE_DIR = Path(__file__).resolve().parent
+ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
 CLEAN_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_clean.csv"
 PROTO_JSON_PATH = BASE_DIR.parent / "web-parsers" / "investmoskow_before" / "data" / "protocols" / "protocol_cache.json"
@@ -139,7 +140,12 @@ st.set_page_config(page_title="Property Goals", layout="wide", initial_sidebar_s
 
 @st.cache_data(ttl=3600)
 def load_data() -> pd.DataFrame:
-    data_path = ENRICHED_DATA_PATH if ENRICHED_DATA_PATH.exists() else CLEAN_DATA_PATH
+    if ENRICHED_GEO_DATA_PATH.exists():
+        data_path = ENRICHED_GEO_DATA_PATH
+    elif ENRICHED_DATA_PATH.exists():
+        data_path = ENRICHED_DATA_PATH
+    else:
+        data_path = CLEAN_DATA_PATH
     if not data_path.exists():
         raise FileNotFoundError(data_path)
 
