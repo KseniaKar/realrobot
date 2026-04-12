@@ -18,7 +18,7 @@ import re
 
 APP_BUILD = "2026-04-12-refusal-list-v4"
 CORRELATION_EXCESS_MIN = -100.0
-CORRELATION_EXCESS_MAX = 200.0
+CORRELATION_EXCESS_MAX = 500.0
 
 # Определяем базовую директорию
 # Если запущено из поддиректории (web-parsers/investmoskow_before/), ищем данные там
