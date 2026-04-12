@@ -264,6 +264,9 @@ df["есть_протокол_отказа"] = df["номер_лота"].astype(
 
 # ── Определение статуса ──
 def get_status(row):
+    # Протокол отказа = победитель уклонился
+    if row.get("есть_протокол_отказа", False):
+        return "Отказ победителя"
     # Нет итоговой цены = не состоялся
     if pd.isna(row.get("итоговая_цена_руб")):
         return "Не состоялся"
@@ -273,10 +276,14 @@ df["статус_торга"] = df.apply(get_status, axis=1)
 
 # ── Цветовая функция ──
 def get_color(row):
-    """Серый для 0 участников или отрицательного превышения, 0% = зелёный, 50% = жёлтый, 100%+ = красный"""
+    """Серый для 0 участников, отрицательного превышения или отказа победителя"""
     pc = row.get("participants_count")
     pct = row["превышение_цены_%"]
-    
+
+    # Отказ победителя = серый
+    if row.get("есть_протокол_отказа", False):
+        return "#4a4a4a"  # тёмно-серый
+
     # 0 участников ИЛИ отрицательное превышение = серый
     if (pd.notna(pc) and int(pc) == 0) or pct < 0:
         return "#4a4a4a"  # тёмно-серый
@@ -325,7 +332,7 @@ years = sorted(df["год_торгов"].dropna().unique())
 selected_year = st.sidebar.selectbox("Год торгов", options=["Все"] + list(years), index=0)
 
 # Статус
-status_options = ["Все", "Состоялся", "Не состоялся"]
+status_options = ["Все", "Состоялся", "Не состоялся", "Отказ победителя"]
 selected_status = st.sidebar.selectbox("Статус", options=status_options, index=0)
 
 # Диапазон площади
@@ -552,7 +559,7 @@ with col_l1:
         """
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #4a4a4a;"></span>
-            <span>Не состоялись (0 участников или снижение цены)</span>
+            <span>Не состоялись / Отказ победителя</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #2ecc71;"></span>
