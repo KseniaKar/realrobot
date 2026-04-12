@@ -213,6 +213,7 @@ df["этаж_норм"] = df["этаж"].apply(normalize_floor)
 # ── Пути к данным об участниках ──
 PROTO_CSV_PATH = os.path.join(BASE_DIR, "data", "protocols", "participants_data.csv")
 PROTO_JSON_PATH = os.path.join(BASE_DIR, "data", "protocols", "protocol_cache.json")
+REFUSAL_LOTS_PATH = os.path.join(BASE_DIR, "data", "protocols", "refusal_protocols", "refusal_lots.txt")
 
 # ── Извлечение округа из адреса ──
 def extract_okrug(addr):
@@ -252,6 +253,14 @@ df = df.merge(
     pd.DataFrame([{'lot_id': int(k), 'participants_count': v.get('participants_count')} for k, v in json.load(open(PROTO_JSON_PATH, encoding='utf-8')).items()]),
     left_on='номер_лота', right_on='lot_id', how='left'
 ) if os.path.exists(PROTO_JSON_PATH) else df
+
+# ── Протокол отказа ──
+refusal_lots = set()
+if os.path.exists(REFUSAL_LOTS_PATH):
+    with open(REFUSAL_LOTS_PATH, "r", encoding="utf-8") as f:
+        refusal_lots = set(line.strip() for line in f if line.strip())
+
+df["есть_протокол_отказа"] = df["номер_лота"].astype(str).apply(lambda x: x in refusal_lots)
 
 # ── Определение статуса ──
 def get_status(row):
@@ -360,6 +369,13 @@ selected_floors = st.sidebar.multiselect(
     default=all_floors,
 )
 
+# Исключить лоты с отказом
+exclude_refusal = st.sidebar.checkbox(
+    "❌ Исключить лоты с отказом",
+    value=False,
+    help="Исключить лоты, где победитель уклонился от заключения договора"
+)
+
 # ═══════════════════════════════════════════════
 #  ФИЛЬТРАЦИЯ
 # ═══════════════════════════════════════════════
@@ -392,11 +408,38 @@ filtered = filtered[
 if selected_floors != all_floors:
     filtered = filtered[filtered["этаж_норм"].isin(selected_floors)]
 
+# Исключить лоты с отказом
+if exclude_refusal:
+    filtered = filtered[~filtered["есть_протокол_отказа"]]
+
 # ═══════════════════════════════════════════════
 #  ОСНОВНОЙ ЭКРАН
 # ═══════════════════════════════════════════════
 st.title("Карта торгов investmoscow.ru")
 st.caption("Нежилые помещения, торги 2022–2026")
+
+# ── Разделение по форме проведения ──
+form_options = ["Все"] + sorted(df["форма_проведения"].dropna().unique())
+
+# Считаем количество лотов по формам
+form_counts = {}
+for form in form_options:
+    if form == "Все":
+        form_counts[form] = len(filtered)
+    else:
+        form_counts[form] = len(filtered[filtered["форма_проведения"] == form])
+
+form_labels = [f"{form} ({form_counts[form]})" for form in form_options]
+selected_idx = st.selectbox("Форма проведения", options=form_labels, index=0, label_visibility="collapsed")
+selected_form = form_options[form_labels.index(selected_idx)]
+
+# Фильтруем по форме
+if selected_form != "Все":
+    filtered = filtered[filtered["форма_проведения"] == selected_form]
+
+# Показываем текущую форму
+if selected_form != "Все":
+    st.subheader(f"📋 {selected_form}")
 
 # Статистика
 n_successful = len(filtered[filtered["статус_торга"] == "Состоялся"])
