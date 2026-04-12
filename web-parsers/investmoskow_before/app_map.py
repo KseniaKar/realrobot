@@ -250,8 +250,20 @@ OKRUG_SHORT = {
 df["округ_код"] = df["округ"].map(OKRUG_SHORT).fillna("Другое")
 
 df = df.merge(
-    pd.DataFrame([{'lot_id': int(k), 'participants_count': v.get('participants_count')} for k, v in json.load(open(PROTO_JSON_PATH, encoding='utf-8')).items()]),
-    left_on='номер_лота', right_on='lot_id', how='left'
+    pd.DataFrame(
+        [
+            {
+                "lot_id": int(k),
+                "participants_count": v.get("participants_count"),
+                "winner": v.get("winner"),
+                "winner_price": v.get("winner_price"),
+            }
+            for k, v in json.load(open(PROTO_JSON_PATH, encoding="utf-8")).items()
+        ]
+    ),
+    left_on="номер_лота",
+    right_on="lot_id",
+    how="left",
 ) if os.path.exists(PROTO_JSON_PATH) else df
 
 # ── Протокол отказа ──
@@ -262,13 +274,22 @@ if os.path.exists(REFUSAL_LOTS_PATH):
 
 df["есть_протокол_отказа"] = df["номер_лота"].astype(str).apply(lambda x: x in refusal_lots)
 
-# Обнулить превышение для лотов с отказом (чтобы не искажали статистику)
-df.loc[df["есть_протокол_отказа"], "превышение_цены_%"] = -1
+# Лоты с участниками, но без финальной цены, тоже считаем отказом победителя.
+df["есть_скрытый_срыв_после_торгов"] = (
+    df["participants_count"].fillna(-1).gt(0)
+    & df["итоговая_цена_руб"].isna()
+)
+df["исключить_из_ценовой_статистики"] = (
+    df["есть_протокол_отказа"] | df["есть_скрытый_срыв_после_торгов"]
+)
+
+# Обнулить превышение для лотов с отказом победителя, чтобы не искажали статистику.
+df.loc[df["исключить_из_ценовой_статистики"], "превышение_цены_%"] = -1
 
 # ── Определение статуса ──
 def get_status(row):
-    # Протокол отказа = победитель уклонился
-    if row.get("есть_протокол_отказа", False):
+    # Явный протокол отказа или отсутствие финальной цены после торгов = отказ победителя.
+    if row.get("исключить_из_ценовой_статистики", False):
         return "Отказ победителя"
     # Нет итоговой цены = не состоялся
     if pd.isna(row.get("итоговая_цена_руб")):
@@ -283,13 +304,13 @@ def get_color(row):
     pc = row.get("participants_count")
     pct = row["превышение_цены_%"]
 
-    # Отказ победителя = серый
-    if row.get("есть_протокол_отказа", False):
-        return "#4a4a4a"  # тёмно-серый
+    # Отказ победителя = тёмно-серый.
+    if row.get("статус_торга") == "Отказ победителя":
+        return "#4a4a4a"
 
-    # 0 участников ИЛИ отрицательное превышение = серый
+    # Не состоялся = светло-серый.
     if (pd.notna(pc) and int(pc) == 0) or pct < 0:
-        return "#4a4a4a"  # тёмно-серый
+        return "#8f8f8f"
 
     # 0% = зелёный, 50% = жёлтый, 100%+ = красный
     if pct <= 0:
@@ -451,8 +472,8 @@ if selected_form != "Все":
 if selected_form != "Все":
     st.subheader(f"📋 {selected_form}")
 
-# Статистика (без учёта отказов)
-stats_df = filtered[~filtered["есть_протокол_отказа"]]
+# Статистика без лотов со статусом "Отказ победителя".
+stats_df = filtered[~filtered["исключить_из_ценовой_статистики"]]
 n_successful = len(stats_df[stats_df["статус_торга"] == "Состоялся"])
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -491,7 +512,10 @@ for _, row in filtered.iterrows():
         participants = int(row["participants_count"])
 
     # Popup
-    excess_text = f"+{row['превышение_цены_%']:.1f}%" if row["превышение_цены_%"] >= 0 else "Не состоялся"
+    if row["превышение_цены_%"] >= 0:
+        excess_text = f"+{row['превышение_цены_%']:.1f}%"
+    else:
+        excess_text = row["статус_торга"]
     final_price = f"{row['итоговая_цена_руб']/1e6:.1f} млн ₽" if pd.notna(row["итоговая_цена_руб"]) else "—"
     start_price = f"{row['начальная_цена_руб']/1e6:.1f} млн ₽"
 
@@ -511,6 +535,7 @@ for _, row in filtered.iterrows():
             <tr><td><b>Площадь:</b></td><td> {row['площадь_м²']:.1f} м²</td></tr>
             <tr><td><b>Начальная цена:</b></td><td> {start_price}</td></tr>
             <tr><td><b>Итоговая цена:</b></td><td> {final_price}</td></tr>
+            <tr><td><b>Статус:</b></td><td> {row['статус_торга']}</td></tr>
             {participants_text}
             {winner_text}
             <tr><td><b>Превышение:</b></td><td style="color: {'green' if row['превышение_цены_%'] >= 0 else 'gray'}; font-weight: bold;"> {excess_text}</td></tr>
@@ -563,7 +588,11 @@ with col_l1:
         """
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #4a4a4a;"></span>
-            <span>Не состоялись / Отказ победителя</span>
+            <span>Отказ победителя</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
+            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #8f8f8f;"></span>
+            <span>Не состоялся</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #2ecc71;"></span>
@@ -631,7 +660,7 @@ if df_proto is not None and "participants_count" in df_proto.columns:
 
     # Используем filtered (там уже есть participants_count из раннего merge)
     # Исключаем лоты с отказом из статистики
-    df_merged = filtered[~filtered["есть_протокол_отказа"]].copy()
+    df_merged = filtered[~filtered["исключить_из_ценовой_статистики"]].copy()
 
     # НЕ меняем participants_count — считаем как есть
     # 0 = реально 0 участников, NaN = нет данных (Нет протокола)
@@ -644,7 +673,7 @@ if df_proto is not None and "participants_count" in df_proto.columns:
     if len(df_has) > 0:
         # Преобразуем превышение в числовое для корректной статистики
         def clean_excess(x):
-            if pd.isna(x) or str(x) == 'Не состоялся':
+            if pd.isna(x) or str(x) in {"Не состоялся", "Отказ победителя"}:
                 return -1.0
             try:
                 return float(str(x).replace('%', ''))
@@ -787,7 +816,7 @@ filtered = filtered.sort_values("превышение_цены_%", ascending=Fal
 # Форматируем превышение для отображения (после сортировки!)
 def fmt_excess(val):
     if val < 0:
-        return "Не состоялся"
+        return "Отказ победителя / не состоялся"
     return f"+{val:.1f}%"
 
 filtered["превышение_display"] = filtered["превышение_цены_%"].apply(fmt_excess)

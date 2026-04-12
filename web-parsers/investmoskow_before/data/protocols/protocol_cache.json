@@ -135,7 +135,7 @@
     "auction_duration": ""
   },
   "19727072": {
-    "participants_count": 53,
+    "participants_count": 38,
     "winner": "Участник ООО \"Бидэксперт\" (по доверенности от Панушкина Александра Георгиевича) (Порядковый номер заявки 5050112)",
     "winner_price": "30 207 679,04",
     "winner_price_num": 30207679.04,
@@ -147,7 +147,7 @@
     "auction_duration": ""
   },
   "19735532": {
-    "participants_count": 83,
+    "participants_count": 56,
     "winner": "Участник ПКОО «Калманкор Энтерпрайзис Лимитед» (Порядковый номер заявки 6455328)",
     "winner_price": "34 263 180,00",
     "winner_price_num": 34263180.0,
@@ -207,7 +207,7 @@
     "auction_duration": ""
   },
   "19724768": {
-    "participants_count": 51,
+    "participants_count": 31,
     "winner": "Участник ООО \"ВИЛЬНЮС ЛТД\" (Порядковый номер заявки 5519588)",
     "winner_price": "28 671 983,10",
     "winner_price_num": 28671983.1,
@@ -843,7 +843,7 @@
     "auction_duration": ""
   },
   "19724751": {
-    "participants_count": 57,
+    "participants_count": 38,
     "winner": "Участник Писецкий Кирилл Владимирович (Порядковый номер заявки 3719634)",
     "winner_price": "20 157 239,21",
     "winner_price_num": 20157239.21,
@@ -855,7 +855,7 @@
     "auction_duration": ""
   },
   "19724764": {
-    "participants_count": 62,
+    "participants_count": 58,
     "winner": "Участник Казачкова Елена Евгеньевна (Порядковый номер заявки 6328093)",
     "winner_price": "21 229 435,18",
     "winner_price_num": 21229435.18,
@@ -1119,7 +1119,7 @@
     "auction_duration": ""
   },
   "19724732": {
-    "participants_count": 59,
+    "participants_count": 42,
     "winner": "Участник Магаррамов Бабек Рахман Оглы (Порядковый номер заявки 8812790)",
     "winner_price": "75 326 744,45",
     "winner_price_num": 75326744.45,
@@ -1155,7 +1155,7 @@
     "auction_duration": ""
   },
   "19724765": {
-    "participants_count": 51,
+    "participants_count": 37,
     "winner": "Участник Кондраков Алексей Константинович (Порядковый номер заявки 7708250)",
     "winner_price": "61 026 560,00",
     "winner_price_num": 61026560.0,
@@ -1623,7 +1623,7 @@
     "auction_duration": ""
   },
   "19811459": {
-    "participants_count": 74,
+    "participants_count": 71,
     "winner": "Участник Артемьев Дмитрий Валерьевич (по доверенности от Чепуркина Георгия Константиновича)",
     "winner_price": "87 083 750,00",
     "winner_price_num": 87083750.0,
@@ -1731,7 +1731,7 @@
     "auction_duration": ""
   },
   "19810723": {
-    "participants_count": 51,
+    "participants_count": 37,
     "winner": "Участник Попов Павел Сергеевич (Порядковый номер заявки 4270003)",
     "winner_price": "46 010 820,00",
     "winner_price_num": 46010820.0,
@@ -1935,7 +1935,7 @@
     "auction_duration": ""
   },
   "19762411": {
-    "participants_count": 52,
+    "participants_count": 45,
     "winner": "Участник Малыхина Ангелина Петровна (Порядковый номер заявки 4394965)",
     "winner_price": "47 360 240,00",
     "winner_price_num": 47360240.0,
@@ -2025,7 +2025,7 @@
     "auction_duration": ""
   },
   "19793739": {
-    "participants_count": 56,
+    "participants_count": 46,
     "winner": "Участник Ткач Михаил Михайлович (по доверенности от Оськиной Надежды Васильевны) (Порядковый номер заявки 2849597)",
     "winner_price": "43 477 500,00",
     "winner_price_num": 43477500.0,
@@ -2037,7 +2037,7 @@
     "auction_duration": ""
   },
   "19793751": {
-    "participants_count": 57,
+    "participants_count": 47,
     "winner": "Участник Шаповаленко Артём Сергеевич (Порядковый номер заявки 4899296)",
     "winner_price": "48 093 275,00",
     "winner_price_num": 48093275.0,
@@ -2049,7 +2049,7 @@
     "auction_duration": ""
   },
   "19793745": {
-    "participants_count": 51,
+    "participants_count": 32,
     "winner": "Участник Ткач Михаил Михайлович (по доверенности от Колесникова Игоря Юрьевича) (Порядковый номер заявки 3287052)",
     "winner_price": "57 955 140,00",
     "winner_price_num": 57955140.0,
@@ -2073,7 +2073,7 @@
     "auction_duration": ""
   },
   "19793747": {
-    "participants_count": 50,
+    "participants_count": 30,
     "winner": "Участник ИП Костромитинов Алексей Алексеевич (Порядковый номер заявки 4201734)",
     "winner_price": "59 308 850,00",
     "winner_price_num": 59308850.0,
@@ -2241,7 +2241,7 @@
     "auction_duration": ""
   },
   "19795526": {
-    "participants_count": 60,
+    "participants_count": 58,
     "winner": "Участник Александрова Татьяна Евгеньевна (по доверенности от Кирюшиной Татьяны Анатольевны) (Порядковый номер заявки 1742574)",
     "winner_price": "37 438 070,00",
     "winner_price_num": 37438070.0,
@@ -2265,7 +2265,7 @@
     "auction_duration": ""
   },
   "19795537": {
-    "participants_count": 56,
+    "participants_count": 42,
     "winner": "Участник Кондраков Алексей Константинович (Порядковый номер заявки 7817602)",
     "winner_price": "78 540 720,00",
     "winner_price_num": 78540720.0,
@@ -2649,7 +2649,7 @@
     "auction_duration": ""
   },
   "19810709": {
-    "participants_count": 51,
+    "participants_count": 37,
     "winner": "Участник Камынин Кирилл Викторович (по доверенности от Маргасова Тимофея Вячеславовича) (Порядковый номер заявки 2396667)",
     "winner_price": "44 986 250,00",
     "winner_price_num": 44986250.0,
@@ -2793,7 +2793,7 @@
     "auction_duration": ""
   },
   "19810719": {
-    "participants_count": 50,
+    "participants_count": 35,
     "winner": "Участник Мартынов Максим Михайлович (Порядковый номер заявки 3541338)",
     "winner_price": "44 420 330,00",
     "winner_price_num": 44420330.0,
@@ -3153,7 +3153,7 @@
     "auction_duration": ""
   },
   "19992535": {
-    "participants_count": 75,
+    "participants_count": 72,
     "winner": "Участник Рагимов Рагим Халилович",
     "winner_price": "42 442\n145,00",
     "winner_price_num": 42442145.0,
@@ -3249,7 +3249,7 @@
     "auction_duration": ""
   },
   "19885138": {
-    "participants_count": 79,
+    "participants_count": 76,
     "winner": "Участник Романюк Любовь Григорьевна",
     "winner_price": "41 322 720,00",
     "winner_price_num": 41322720.0,
@@ -3261,7 +3261,7 @@
     "auction_duration": ""
   },
   "19885093": {
-    "participants_count": 64,
+    "participants_count": 61,
     "winner": "Участник Ткач Михаил Михайлович (по доверенности от Бердникова Александра Викторовича)",
     "winner_price": "41 875 305,00",
     "winner_price_num": 41875305.0,
@@ -3345,7 +3345,7 @@
     "auction_duration": ""
   },
   "19863316": {
-    "participants_count": 81,
+    "participants_count": 78,
     "winner": "Участник Индивидуальный предприниматель Курмаев Тимур Рустамович",
     "winner_price": "95 098 800,00",
     "winner_price_num": 95098800.0,
@@ -3357,7 +3357,7 @@
     "auction_duration": ""
   },
   "19863301": {
-    "participants_count": 68,
+    "participants_count": 65,
     "winner": "Участник Индивидуальный предприниматель Курмаев Тимур Рустамович",
     "winner_price": "58 680 150,00",
     "winner_price_num": 58680150.0,
@@ -3369,7 +3369,7 @@
     "auction_duration": ""
   },
   "19863548": {
-    "participants_count": 98,
+    "participants_count": 95,
     "winner": "Участник Магомедгаджиев Рашид Магомедович",
     "winner_price": "56 364 750,00",
     "winner_price_num": 56364750.0,
@@ -3393,7 +3393,7 @@
     "auction_duration": ""
   },
   "19863360": {
-    "participants_count": 89,
+    "participants_count": 86,
     "winner": "Участник СКВОРЦОВА НАТАЛЬЯ СЕРГЕЕВНА",
     "winner_price": "60 308 380,00",
     "winner_price_num": 60308380.0,
@@ -6371,7 +6371,7 @@
     "auction_duration": ""
   },
   "19901256": {
-    "participants_count": 64,
+    "participants_count": 61,
     "winner": "Участник Синцова Евгения Юрьевна",
     "winner_price": "25 939 875,00",
     "winner_price_num": 25939875.0,
@@ -44075,7 +44075,7 @@
     "auction_duration": ""
   },
   "19148248": {
-    "participants_count": 66,
+    "participants_count": 50,
     "winner": "Участник Багирян Александр Михайлович (Порядковый номер заявки 496658)",
     "winner_price": "40 490 575,20",
     "winner_price_num": 40490575.2,
@@ -44579,7 +44579,7 @@
     "auction_duration": ""
   },
   "19151479": {
-    "participants_count": 90,
+    "participants_count": 66,
     "winner": "Участник Изюмцев Алексей Валерьевич (Порядковый номер заявки 310352)",
     "winner_price": "87 726 591,26",
     "winner_price_num": 87726591.26,
@@ -46517,7 +46517,7 @@
     "error": "http_429"
   },
   "19272964": {
-    "participants_count": 53,
+    "participants_count": 49,
     "winner": "",
     "winner_price": "",
     "winner_price_num": null,
@@ -50867,7 +50867,7 @@
     "error": "no_protocol"
   },
   "19394503": {
-    "participants_count": 88,
+    "participants_count": 70,
     "winner": "",
     "winner_price": "",
     "winner_price_num": null,
@@ -53279,7 +53279,7 @@
     "error": "no_protocol"
   },
   "19456367": {
-    "participants_count": 83,
+    "participants_count": 58,
     "winner": "Участник ООО \"МОСНЕРУДТОРГ\" (Порядковый номер заявки 762134)",
     "winner_price": "62 135 491,44",
     "winner_price_num": 62135491.44,
@@ -54803,7 +54803,7 @@
     "error": "no_protocol"
   },
   "19475183": {
-    "participants_count": 74,
+    "participants_count": 51,
     "winner": "Участник ООО \"ГЕРМЕС ОЙЛ\" (Порядковый номер заявки 4849978)",
     "winner_price": "41 832 900,58",
     "winner_price_num": 41832900.58,
@@ -56726,7 +56726,7 @@
     "error": "no_protocol"
   },
   "19503057": {
-    "participants_count": 80,
+    "participants_count": 58,
     "winner": "Участник Писецкий Кирилл Владимирович (Порядковый номер заявки 3770633)",
     "winner_price": "25 030 462,78",
     "winner_price_num": 25030462.78,
@@ -58679,7 +58679,7 @@
     "auction_duration": ""
   },
   "19541405": {
-    "participants_count": 51,
+    "participants_count": 42,
     "winner": "Участник Багаев Алим Давидович (Порядковый номер заявки 3176954)",
     "winner_price": "19 171 694,92",
     "winner_price_num": 19171694.92,
@@ -58805,7 +58805,7 @@
     "auction_duration": "22.05.2024 в 10:00 — 22.05.2024 в 10:32"
   },
   "19541744": {
-    "participants_count": 50,
+    "participants_count": 39,
     "winner": "Участник ИП Петухова Татьяна Николаевна (Порядковый номер заявки 6551131)",
     "winner_price": "132 961 631,88",
     "winner_price_num": 132961631.88,
@@ -58835,7 +58835,7 @@
     "error": "no_protocol"
   },
   "19541840": {
-    "participants_count": 52,
+    "participants_count": 45,
     "winner": "Участник ИП Петухова Татьяна Николаевна (Порядковый номер заявки 5538669)",
     "winner_price": "25 364 874,60",
     "winner_price_num": 25364874.6,
@@ -58850,7 +58850,7 @@
     "error": "no_protocol"
   },
   "19541889": {
-    "participants_count": 78,
+    "participants_count": 56,
     "winner": "Участник Кондраков Алексей Константинович (Порядковый номер заявки 5269292)",
     "winner_price": "42 199 789,06",
     "winner_price_num": 42199789.06,
@@ -59441,7 +59441,7 @@
     "auction_duration": "28.05.2024 в 10:00 — 28.05.2024 в 10:20"
   },
   "19548389": {
-    "participants_count": 50,
+    "participants_count": 46,
     "winner": "Участник Петухова Екатерина Евгеньевна (по доверенности от Абакарова Шарабуттина Гамидовича) (Порядковый номер заявки 6582312)",
     "winner_price": "46 434 998,89",
     "winner_price_num": 46434998.89,
@@ -61496,7 +61496,7 @@
     "auction_duration": ""
   },
   "19573480": {
-    "participants_count": 50,
+    "participants_count": 38,
     "winner": "Участник Никонова Наталья Александровна (Порядковый номер заявки 8132818)",
     "winner_price": "19 025\n888,12",
     "winner_price_num": 19025888.12,
@@ -61592,7 +61592,7 @@
     "auction_duration": ""
   },
   "19573636": {
-    "participants_count": 52,
+    "participants_count": 44,
     "winner": "Участник Башева Ольга Ивановна (Порядковый номер заявки 8645001)",
     "winner_price": "46 028\n368,49",
     "winner_price_num": 46028368.49,
@@ -61604,7 +61604,7 @@
     "auction_duration": ""
   },
   "19573654": {
-    "participants_count": 54,
+    "participants_count": 52,
     "winner": "Участник Мельник Сергей Алексеевич (Порядковый номер заявки 4056499)",
     "winner_price": "44 251\n576,46",
     "winner_price_num": 44251576.46,
@@ -63188,7 +63188,7 @@
     "auction_duration": ""
   },
   "19591678": {
-    "participants_count": 50,
+    "participants_count": 45,
     "winner": "Участник Мирзоян Дмитрий Александрович (по доверенности от Габисония Георгия Теймуразовича) (Порядковый номер заявки 8746125)",
     "winner_price": "64 134 772,92",
     "winner_price_num": 64134772.92,
@@ -63710,7 +63710,7 @@
     "auction_duration": ""
   },
   "19600061": {
-    "participants_count": 52,
+    "participants_count": 43,
     "winner": "Участник ИП Дзыбов Олег Мусович (Порядковый номер заявки 7152572)",
     "winner_price": "31 920 528,64",
     "winner_price_num": 31920528.64,
@@ -65471,7 +65471,7 @@
     "auction_duration": ""
   },
   "19640753": {
-    "participants_count": 68,
+    "participants_count": 51,
     "winner": "Участник Могутова Оксана Николаевна (Порядковый номер заявки 9693533)",
     "winner_price": "30 719 673,60",
     "winner_price_num": 30719673.6,
@@ -66140,7 +66140,7 @@
     "auction_duration": "20.09.2024 в 10:00 — 20.09.2024 в 10:46"
   },
   "19652377": {
-    "participants_count": 73,
+    "participants_count": 49,
     "winner": "Участник ЗАО \"Новый Алгоритм\" (Порядковый номер заявки 8903833)",
     "winner_price": "68 807 025,00",
     "winner_price_num": 68807025.0,
@@ -66236,7 +66236,7 @@
     "auction_duration": ""
   },
   "19652752": {
-    "participants_count": 66,
+    "participants_count": 47,
     "winner": "Участник Буртиева Юлия Валентиновна (по доверенности от Зубкова Артема Владимировича) (Порядковый номер заявки 8815885)",
     "winner_price": "50 127 592,80",
     "winner_price_num": 50127592.8,
@@ -66320,7 +66320,7 @@
     "auction_duration": ""
   },
   "19652929": {
-    "participants_count": 67,
+    "participants_count": 46,
     "winner": "Участник Зананян Зепюр Арутюновна (Порядковый номер заявки 6864138)",
     "winner_price": "45 177 022,92",
     "winner_price_num": 45177022.92,
@@ -67565,7 +67565,7 @@
     "auction_duration": ""
   },
   "19678424": {
-    "participants_count": 50,
+    "participants_count": 37,
     "winner": "Участник ИП Раджабова Азиза Солиджоновна (Порядковый номер заявки 3988427)",
     "winner_price": "52 595 705,00",
     "winner_price_num": 52595705.0,
@@ -70136,7 +70136,7 @@
     "auction_duration": "29.11.2024 в 10:00 — 29.11.2024 в 10:22"
   },
   "19706654": {
-    "participants_count": 53,
+    "participants_count": 47,
     "winner": "Участник Дубовик Инна Васильевна (Порядковый номер заявки 5045645)",
     "winner_price": "25 239 190,36",
     "winner_price_num": 25239190.36,
@@ -70208,7 +70208,7 @@
     "auction_duration": ""
   },
   "19707801": {
-    "participants_count": 71,
+    "participants_count": 50,
     "winner": "Участник Будаев Никита Сергеевич (Порядковый номер заявки 4522354)",
     "winner_price": "22 607 413,10",
     "winner_price_num": 22607413.1,
@@ -70220,7 +70220,7 @@
     "auction_duration": ""
   },
   "19707802": {
-    "participants_count": 50,
+    "participants_count": 43,
     "winner": "Участник Мамонтов Денис Владимирович (Порядковый номер заявки 9110311)",
     "winner_price": "27 296 487,80",
     "winner_price_num": 27296487.8,
@@ -70244,7 +70244,7 @@
     "auction_duration": ""
   },
   "19707804": {
-    "participants_count": 63,
+    "participants_count": 50,
     "winner": "Участник Камынин Кирилл Викторович (по доверенности от Васина Виктора Владимировича) (Порядковый номер заявки 8374972)",
     "winner_price": "30 350 185,39",
     "winner_price_num": 30350185.39,
@@ -70487,7 +70487,7 @@
     "auction_duration": "06.12.2024 в 10:00 — 06.12.2024 в 10:27"
   },
   "19709878": {
-    "participants_count": 51,
+    "participants_count": 41,
     "winner": "Участник Березин Михаил Сергеевич (Порядковый номер заявки 3285587)",
     "winner_price": "17 973 545,56",
     "winner_price_num": 17973545.56,

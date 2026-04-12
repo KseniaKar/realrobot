@@ -23,6 +23,31 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
+
+def count_admitted_rows(rows):
+    """Считаем только допущенные заявки, если в строках виден столбец решения."""
+    admitted = 0
+    fallback_total = 0
+
+    for row in rows:
+        cells = [str(cell).strip() if cell is not None else "" for cell in row]
+        if not any(cells):
+            continue
+
+        text = " ".join(cells).lower()
+        fallback_total += 1
+
+        if "не допустить" in text:
+            continue
+        if "допустить" in text:
+            admitted += 1
+        elif "отказать" in text and "допуск" in text:
+            continue
+        else:
+            admitted += 1
+
+    return admitted if admitted > 0 else fallback_total
+
 def parse_protocol_pdf(filepath):
     """Парсим .pdf протокол аукциона"""
     try:
@@ -107,7 +132,7 @@ def parse_protocol_pdf(filepath):
                 # Проверяем, что это таблица участников (первая строка — заголовок или номер)
                 is_participants_table = (
                     "номер заявки" in header or
-                    "порядковый" in header or
+                    ("порядковый" in header and "заяв" in header) or
                     header == "№ заявки" or
                     header == "№" or
                     re.match(r'^\d{5,}$', str(table[0][0]).strip())  # Начинается с номера заявки
@@ -117,7 +142,7 @@ def parse_protocol_pdf(filepath):
                     # Если первая строка — заголовок, не считаем её
                     first_cell = str(table[0][0]).strip().lower()
                     start_idx = 1 if first_cell in ['№ заявки', '№', 'порядковый номер'] or 'заяв' in first_cell else 0
-                    total_rows += len(table) - start_idx
+                    total_rows += count_admitted_rows(table[start_idx:])
 
     if header_found:
         result["participants_count"] = total_rows
@@ -216,18 +241,20 @@ def parse_protocol_docx(filepath):
                     first_data = table.rows[1].cells[0].text.strip()
                     # Если вторая строка выглядит как порядковый номер (цифра) или номер заявки — это таблица участников
                     if re.match(r'^\d+$', first_data) or re.match(r'^\d{5,}$', first_data):
-                        result["participants_count"] = len(table.rows) - 1
+                        data_rows = [[cell.text.strip() for cell in row.cells] for row in table.rows[1:]]
+                        result["participants_count"] = count_admitted_rows(data_rows)
                         table_found = True
                         break
             # Проверяем: первая строка = данные (номер заявки без заголовка)
             elif re.match(r'^\d{5,}$', table.rows[0].cells[0].text.strip()):
                 # Это таблица участников без заголовка
-                result["participants_count"] = len(table.rows)
+                data_rows = [[cell.text.strip() for cell in row.cells] for row in table.rows]
+                result["participants_count"] = count_admitted_rows(data_rows)
                 table_found = True
                 break
 
     # Если таблица не дала результат или дала 1 участника — проверяем текст
-    if result["participants_count"] <= 1:
+    if not table_found and result["participants_count"] <= 1:
         # Ищем "Заявка № XXXXXX" или "Заявка №XXXXXX"
         applicant_mentions = re.findall(r'[Зз]аявка\s*№?\s*\d+', all_text)
         if applicant_mentions and len(applicant_mentions) > result["participants_count"]:
