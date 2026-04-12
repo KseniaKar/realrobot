@@ -168,10 +168,10 @@ st.title("Property Goals")
 st.caption("История реально купленных лотов investmoscow, 2022–2026")
 st.caption(f"Build: {APP_BUILD}")
 
-st.sidebar.title("Фильтры")
-
 all_forms = sorted(df["форма_проведения"].dropna().unique())
-selected_forms = st.sidebar.multiselect("Форма проведения", all_forms, default=all_forms)
+selected_forms = st.multiselect("Форма проведения", all_forms, default=all_forms)
+
+st.sidebar.title("Фильтры")
 
 all_years = sorted(df["год_торгов"].dropna().unique())
 selected_years = st.sidebar.multiselect("Год торгов", all_years, default=all_years)
