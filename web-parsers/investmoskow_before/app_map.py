@@ -16,6 +16,8 @@ import os
 import json
 import re
 
+APP_BUILD = "2026-04-12-refusal-participants-v2"
+
 # Определяем базовую директорию
 # Если запущено из поддиректории (web-parsers/investmoskow_before/), ищем данные там
 # Иначе — ищем на уровень выше (в корне репозитория)
@@ -448,6 +450,7 @@ if exclude_refusal:
 # ═══════════════════════════════════════════════
 st.title("Карта торгов investmoscow.ru")
 st.caption("Нежилые помещения, торги 2022–2026")
+st.caption(f"Build: {APP_BUILD}")
 
 # ── Разделение по форме проведения ──
 form_options = ["Все"] + sorted(df["форма_проведения"].dropna().unique())
