@@ -16,7 +16,7 @@ import os
 import json
 import re
 
-APP_BUILD = "2026-04-12-public-offers-corr-v3"
+APP_BUILD = "2026-04-12-refusal-list-v4"
 
 # Определяем базовую директорию
 # Если запущено из поддиректории (web-parsers/investmoskow_before/), ищем данные там
