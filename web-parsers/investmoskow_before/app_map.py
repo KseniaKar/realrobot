@@ -329,6 +329,14 @@ def get_color(row):
     if pd.isna(pct):
         return "#8f8f8f"
 
+    # Отрицательное превышение = голубой/синий.
+    if pct < 0:
+        if pct <= -50:
+            return "#2563eb"
+        if pct <= -20:
+            return "#3b82f6"
+        return "#7dd3fc"
+
     # 0% = зелёный, 50% = жёлтый, 100%+ = красный
     if pct <= 0:
         return "#2ecc71"  # зелёный
@@ -620,6 +628,10 @@ with col_l1:
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #2ecc71;"></span>
             <span>0% (стартовая цена)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
+            <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #3b82f6;"></span>
+            <span>Отрицательное превышение</span>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin: 8px 0;">
             <span style="display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: #f1d621;"></span>
