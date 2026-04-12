@@ -169,7 +169,7 @@ st.caption("История реально купленных лотов investmo
 st.caption(f"Build: {APP_BUILD}")
 
 all_forms = sorted(df["форма_проведения"].dropna().unique())
-selected_forms = st.multiselect("Форма проведения", all_forms, default=all_forms)
+selected_form = st.selectbox("Форма проведения", ["Все"] + all_forms, index=0)
 
 st.sidebar.title("Фильтры")
 
@@ -207,7 +207,7 @@ excess_range = st.sidebar.slider(
 )
 
 filtered = df[
-    df["форма_проведения"].isin(selected_forms)
+    ((df["форма_проведения"] == selected_form) if selected_form != "Все" else True)
     & df["год_торгов"].isin(selected_years)
     & df["округ_код"].isin(selected_okrugs)
     & df["этаж_норм"].isin(selected_floors)
