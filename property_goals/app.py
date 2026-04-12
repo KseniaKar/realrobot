@@ -13,9 +13,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-12-property-goals-enriched-v2"
+APP_BUILD = "2026-04-12-property-goals-enriched-v3"
 BASE_DIR = Path(__file__).resolve().parent
-DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
+ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
+CLEAN_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_clean.csv"
 PROTO_JSON_PATH = BASE_DIR.parent / "web-parsers" / "investmoskow_before" / "data" / "protocols" / "protocol_cache.json"
 
 OKRUG_SHORT = {
@@ -138,10 +139,11 @@ st.set_page_config(page_title="Property Goals", layout="wide", initial_sidebar_s
 
 @st.cache_data(ttl=3600)
 def load_data() -> pd.DataFrame:
-    if not DATA_PATH.exists():
-        raise FileNotFoundError(DATA_PATH)
+    data_path = ENRICHED_DATA_PATH if ENRICHED_DATA_PATH.exists() else CLEAN_DATA_PATH
+    if not data_path.exists():
+        raise FileNotFoundError(data_path)
 
-    df = pd.read_csv(DATA_PATH, encoding="utf-8-sig")
+    df = pd.read_csv(data_path, encoding="utf-8-sig")
     df = df.dropna(subset=["latitude", "longitude"]).copy()
 
     numeric_cols = [
