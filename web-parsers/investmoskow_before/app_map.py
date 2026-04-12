@@ -815,7 +815,7 @@ if df_proto is not None and "participants_count" in df_proto.columns:
         )
 
         # Корреляция
-        valid = df_has[(df_has["участники"] > 0) & (df_has["превышение_цены_%"] >= 0)]
+        valid = df_has[(df_has["участники"] > 0) & (df_has["превышение_цены_%"].notna())]
         if len(valid) > 1:
             corr = valid[["участники", "превышение_цены_%"]].corr().iloc[0, 1]
             st.caption(f"Корреляция (участники ↔ превышение): r = {corr:.3f}")
