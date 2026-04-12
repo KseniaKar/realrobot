@@ -116,7 +116,7 @@ def load_data():
     # Для fallback-файлов дополнительно отбрасываем строки без координат.
     df = df.dropna(subset=["latitude", "longitude"])
 
-    # Превышение: "95.0%" → 95.0, NaN → -1
+    # Превышение: "95.0%" → 95.0
     if "превышение_цены_%" in df.columns:
         df["превышение_цены_%"] = (
             df["превышение_цены_%"]
@@ -124,7 +124,7 @@ def load_data():
             .str.replace("%", "", regex=False)
             .str.strip()
         )
-        df["превышение_цены_%"] = pd.to_numeric(df["превышение_цены_%"], errors="coerce").fillna(-1)
+        df["превышение_цены_%"] = pd.to_numeric(df["превышение_цены_%"], errors="coerce")
 
     # Ценовые колонки: "117613372,50" → 117613372.50
     money_cols = ["итоговая_цена_руб", "начальная_цена_руб", "цена_за_м²"]
@@ -137,6 +137,18 @@ def load_data():
                 .str.strip()
             )
             df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Если превышение не пришло из источника, рассчитываем его из стартовой и итоговой цены.
+    can_compute_excess = (
+        df["превышение_цены_%"].isna()
+        & df["начальная_цена_руб"].gt(0)
+        & df["итоговая_цена_руб"].notna()
+    )
+    df.loc[can_compute_excess, "превышение_цены_%"] = (
+        (df.loc[can_compute_excess, "итоговая_цена_руб"] - df.loc[can_compute_excess, "начальная_цена_руб"])
+        / df.loc[can_compute_excess, "начальная_цена_руб"]
+        * 100
+    )
 
     return df
 
@@ -285,8 +297,8 @@ df["исключить_из_ценовой_статистики"] = (
     df["есть_протокол_отказа"] | df["есть_скрытый_срыв_после_торгов"]
 )
 
-# Обнулить превышение для лотов с отказом победителя, чтобы не искажали статистику.
-df.loc[df["исключить_из_ценовой_статистики"], "превышение_цены_%"] = -1
+# У лотов с отказом победителя превышение не должно участвовать в ценовой статистике.
+df.loc[df["исключить_из_ценовой_статистики"], "превышение_цены_%"] = np.nan
 
 # ── Определение статуса ──
 def get_status(row):
@@ -302,7 +314,7 @@ df["статус_торга"] = df.apply(get_status, axis=1)
 
 # ── Цветовая функция ──
 def get_color(row):
-    """Серый для 0 участников, отрицательного превышения или отказа победителя"""
+    """Цвет точки по статусу и превышению цены."""
     pc = row.get("participants_count")
     pct = row["превышение_цены_%"]
 
@@ -311,7 +323,10 @@ def get_color(row):
         return "#4a4a4a"
 
     # Не состоялся = светло-серый.
-    if (pd.notna(pc) and int(pc) == 0) or pct < 0:
+    if row.get("статус_торга") == "Не состоялся":
+        return "#8f8f8f"
+
+    if pd.isna(pct):
         return "#8f8f8f"
 
     # 0% = зелёный, 50% = жёлтый, 100%+ = красный
@@ -385,12 +400,14 @@ price_range = st.sidebar.slider(
 )
 
 # Превышение цены
-max_exc = max(float(df["превышение_цены_%"].max()), 0.0)  # минимум 0 чтобы избежать -1 == -1
+valid_excess = df["превышение_цены_%"].dropna()
+min_exc = float(valid_excess.min()) if len(valid_excess) > 0 else 0.0
+max_exc = float(valid_excess.max()) if len(valid_excess) > 0 else 0.0
 excess_range = st.sidebar.slider(
     "Превышение цены, %",
-    min_value=-1.0,
+    min_value=min_exc,
     max_value=max_exc,
-    value=(-1.0, max_exc),
+    value=(min_exc, max_exc),
     step=1.0
 )
 
@@ -434,8 +451,11 @@ filtered = filtered[
 ]
 
 filtered = filtered[
-    (filtered["превышение_цены_%"] >= excess_range[0]) &
-    (filtered["превышение_цены_%"] <= excess_range[1])
+    filtered["превышение_цены_%"].isna() |
+    (
+        (filtered["превышение_цены_%"] >= excess_range[0]) &
+        (filtered["превышение_цены_%"] <= excess_range[1])
+    )
 ]
 
 if selected_floors != all_floors:
@@ -482,11 +502,11 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Всего лотов", len(filtered))
 with col2:
-    if n_successful > 0:
-        avg_excess = stats_df[stats_df["превышение_цены_%"] >= 0]["превышение_цены_%"].mean()
-        st.metric("Ср. превышение", f"+{avg_excess:.1f}%")
+    avg_excess = stats_df["превышение_цены_%"].dropna().mean()
+    if pd.notna(avg_excess):
+        st.metric("Ср. превышение", f"{avg_excess:+.1f}%")
     else:
-        st.metric("Ср. превышение", "—")
+        st.metric("Ср. превышение", "н/д")
 with col3:
     if n_successful > 0:
         avg_price_m2 = stats_df[stats_df["итоговая_цена_руб"].notna()]["цена_за_м²"].mean()
@@ -515,8 +535,8 @@ for _, row in filtered.iterrows():
         participants = int(row["participants_count"])
 
     # Popup
-    if row["превышение_цены_%"] >= 0:
-        excess_text = f"+{row['превышение_цены_%']:.1f}%"
+    if pd.notna(row["превышение_цены_%"]):
+        excess_text = f"{row['превышение_цены_%']:+.1f}%"
     else:
         excess_text = row["статус_торга"]
     final_price = f"{row['итоговая_цена_руб']/1e6:.1f} млн ₽" if pd.notna(row["итоговая_цена_руб"]) else "—"
@@ -541,7 +561,7 @@ for _, row in filtered.iterrows():
             <tr><td><b>Статус:</b></td><td> {row['статус_торга']}</td></tr>
             {participants_text}
             {winner_text}
-            <tr><td><b>Превышение:</b></td><td style="color: {'green' if row['превышение_цены_%'] >= 0 else 'gray'}; font-weight: bold;"> {excess_text}</td></tr>
+            <tr><td><b>Превышение:</b></td><td style="color: {'green' if pd.notna(row['превышение_цены_%']) and row['превышение_цены_%'] <= 0 else ('#d97706' if pd.notna(row['превышение_цены_%']) else 'gray')}; font-weight: bold;"> {excess_text}</td></tr>
             <tr><td><b>Этаж:</b></td><td> {row['этаж_норм']}</td></tr>
             <tr><td><b>Как в источнике:</b></td><td> {row['этаж']}</td></tr>
             <tr><td><b>Метро:</b></td><td> {row['метро']}</td></tr>
@@ -670,18 +690,18 @@ if df_proto is not None and "participants_count" in df_proto.columns:
     df_has = df_merged[df_merged["participants_count"].notna()].copy()
     df_has["участники"] = df_has["participants_count"].astype(int)
 
-    # Превышение уже числовое (load_data обработал)
-    df_has = df_has[df_has["превышение_цены_%"] >= -1].copy()
+    # Превышение уже числовое (load_data обработал).
+    df_has = df_has[df_has["превышение_цены_%"].notna()].copy()
 
     if len(df_has) > 0:
         # Преобразуем превышение в числовое для корректной статистики
         def clean_excess(x):
-            if pd.isna(x) or str(x) in {"Не состоялся", "Отказ победителя"}:
-                return -1.0
+            if pd.isna(x):
+                return np.nan
             try:
                 return float(str(x).replace('%', ''))
             except:
-                return -1.0
+                return np.nan
         
         df_has['exc_num'] = df_has['превышение_цены_%'].apply(clean_excess)
         
@@ -818,9 +838,9 @@ filtered = filtered.sort_values("превышение_цены_%", ascending=Fal
 
 # Форматируем превышение для отображения (после сортировки!)
 def fmt_excess(val):
-    if val < 0:
+    if pd.isna(val):
         return "Отказ победителя / не состоялся"
-    return f"+{val:.1f}%"
+    return f"{val:+.1f}%"
 
 filtered["превышение_display"] = filtered["превышение_цены_%"].apply(fmt_excess)
 
