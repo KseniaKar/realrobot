@@ -228,6 +228,7 @@ df["этаж_норм"] = df["этаж"].apply(normalize_floor)
 PROTO_CSV_PATH = os.path.join(BASE_DIR, "data", "protocols", "participants_data.csv")
 PROTO_JSON_PATH = os.path.join(BASE_DIR, "data", "protocols", "protocol_cache.json")
 REFUSAL_LOTS_PATH = os.path.join(BASE_DIR, "data", "protocols", "refusal_protocols", "refusal_lots.txt")
+REFUSAL_PROTOCOLS_DIR = os.path.join(BASE_DIR, "data", "protocols", "refusal_protocols")
 
 # ── Извлечение округа из адреса ──
 def extract_okrug(addr):
@@ -285,6 +286,14 @@ refusal_lots = set()
 if os.path.exists(REFUSAL_LOTS_PATH):
     with open(REFUSAL_LOTS_PATH, "r", encoding="utf-8") as f:
         refusal_lots = set(line.strip() for line in f if line.strip())
+
+if os.path.exists(REFUSAL_PROTOCOLS_DIR):
+    for filename in os.listdir(REFUSAL_PROTOCOLS_DIR):
+        if not any(filename.endswith(ext) for ext in (".pdf", ".docx", ".unknown")):
+            continue
+        lot_id = filename.split("_")[0].strip()
+        if lot_id.isdigit():
+            refusal_lots.add(lot_id)
 
 df["есть_протокол_отказа"] = df["номер_лота"].astype(str).apply(lambda x: x in refusal_lots)
 
