@@ -13,9 +13,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-12-property-goals-v1"
+APP_BUILD = "2026-04-12-property-goals-enriched-v2"
 BASE_DIR = Path(__file__).resolve().parent
-DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026.csv"
+DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
 PROTO_JSON_PATH = BASE_DIR.parent / "web-parsers" / "investmoskow_before" / "data" / "protocols" / "protocol_cache.json"
 
 OKRUG_SHORT = {
@@ -119,11 +119,21 @@ def get_color(excess: float) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-st.set_page_config(
-    page_title="Property Goals",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+def format_match_confidence(value: object) -> str:
+    if not isinstance(value, str) or not value.strip():
+        return "Нет"
+    mapping = {"high": "High", "medium": "Medium", "low": "Low", "none": "Нет"}
+    return mapping.get(value.strip().lower(), value)
+
+
+def safe_text(value: object, fallback: str = "—") -> str:
+    if not isinstance(value, str):
+        return fallback
+    clean = value.strip()
+    return clean if clean else fallback
+
+
+st.set_page_config(page_title="Property Goals", layout="wide", initial_sidebar_state="expanded")
 
 
 @st.cache_data(ttl=3600)
@@ -134,7 +144,14 @@ def load_data() -> pd.DataFrame:
     df = pd.read_csv(DATA_PATH, encoding="utf-8-sig")
     df = df.dropna(subset=["latitude", "longitude"]).copy()
 
-    for col in ["итоговая_цена_руб", "начальная_цена_руб", "цена_за_м²", "превышение_цены_%", "площадь_м²"]:
+    numeric_cols = [
+        "итоговая_цена_руб",
+        "начальная_цена_руб",
+        "цена_за_м²",
+        "превышение_цены_%",
+        "площадь_м²",
+    ]
+    for col in numeric_cols:
         df[col] = pd.to_numeric(
             df[col].astype(str).str.replace("%", "", regex=False).str.replace(",", ".", regex=False).str.strip(),
             errors="coerce",
@@ -143,10 +160,10 @@ def load_data() -> pd.DataFrame:
     if PROTO_JSON_PATH.exists():
         with open(PROTO_JSON_PATH, "r", encoding="utf-8") as f:
             cache = json.load(f)
-        proto = pd.DataFrame(
-            [{"lot_id": int(k), "participants_count": v.get("participants_count")} for k, v in cache.items()]
-        )
+        proto = pd.DataFrame([{"lot_id": int(k), "participants_count": v.get("participants_count")} for k, v in cache.items()])
         df = df.merge(proto, left_on="номер_лота", right_on="lot_id", how="left")
+    else:
+        df["participants_count"] = np.nan
 
     df["округ"] = df["адрес"].apply(extract_okrug)
     df["округ_код"] = df["округ"].map(OKRUG_SHORT).fillna("Другое")
@@ -159,6 +176,12 @@ def load_data() -> pd.DataFrame:
         lambda area: 5 if pd.isna(area) or area <= 0 else max(4, min(4 + 6 * np.log1p(area) / np.log1p(max_area), 25))
     )
     df["участники"] = df["participants_count"].apply(lambda x: int(x) if pd.notna(x) else None)
+
+    for col in ["likely_company", "likely_usage", "company_candidates_preview", "usage_candidates_preview", "match_confidence"]:
+        if col not in df.columns:
+            df[col] = ""
+    df["match_confidence"] = df["match_confidence"].fillna("").astype(str)
+    df["match_confidence_label"] = df["match_confidence"].apply(format_match_confidence)
     return df
 
 
@@ -181,6 +204,9 @@ selected_okrugs = st.sidebar.multiselect("Округ", all_okrugs, default=all_o
 
 all_floors = [item for item in FLOOR_ORDER if item in set(df["этаж_норм"].dropna().unique())]
 selected_floors = st.sidebar.multiselect("Этаж", all_floors, default=all_floors)
+
+all_match_conf = [item for item in ["High", "Medium", "Low", "Нет"] if item in set(df["match_confidence_label"].dropna().unique())]
+selected_match_conf = st.sidebar.multiselect("Usage match", all_match_conf, default=all_match_conf)
 
 area_range = st.sidebar.slider(
     "Площадь, м²",
@@ -211,6 +237,7 @@ filtered = df[
     & df["год_торгов"].isin(selected_years)
     & df["округ_код"].isin(selected_okrugs)
     & df["этаж_норм"].isin(selected_floors)
+    & df["match_confidence_label"].isin(selected_match_conf)
     & df["площадь_м²"].between(area_range[0], area_range[1])
     & df["итоговая_цена_млн"].between(price_range[0], price_range[1])
     & df["превышение_цены_%"].between(excess_range[0], excess_range[1])
@@ -220,19 +247,21 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("Купленных лотов", len(filtered))
 col2.metric("Ср. превышение", f"{filtered['превышение_цены_%'].mean():+.1f}%")
 col3.metric("Ср. итоговая цена", f"{filtered['итоговая_цена_млн'].mean():.1f} млн ₽")
-participants_mean = filtered["участники"].dropna().mean()
-col4.metric("Ср. участников", f"{participants_mean:.1f}" if pd.notna(participants_mean) else "—")
+matched_count = int(filtered["likely_company"].fillna("").astype(str).str.strip().ne("").sum())
+col4.metric("Usage matched", matched_count)
 
 center_lat = filtered["latitude"].mean() if len(filtered) else 55.7558
 center_lon = filtered["longitude"].mean() if len(filtered) else 37.6173
 map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=10, tiles="CartoDB positron")
 
 for _, row in filtered.iterrows():
+    likely_company = safe_text(row["likely_company"])
+    likely_usage = safe_text(row["likely_usage"])
     popup_html = f"""
-    <div style="font-family: Arial, sans-serif; min-width: 280px;">
+    <div style="font-family: Arial, sans-serif; min-width: 320px;">
         <h4 style="margin: 0 0 8px; color: #333;">Лот #{row['номер_лота']}</h4>
         <table style="font-size: 13px; line-height: 1.6;">
-            <tr><td><b>Адрес:</b></td><td>{row['адрес'][:70]}...</td></tr>
+            <tr><td><b>Адрес:</b></td><td>{safe_text(row['адрес'])}</td></tr>
             <tr><td><b>Площадь:</b></td><td>{row['площадь_м²']:.1f} м²</td></tr>
             <tr><td><b>Старт:</b></td><td>{row['начальная_цена_млн']:.1f} млн ₽</td></tr>
             <tr><td><b>Итог:</b></td><td>{row['итоговая_цена_млн']:.1f} млн ₽</td></tr>
@@ -240,6 +269,9 @@ for _, row in filtered.iterrows():
             <tr><td><b>Участники:</b></td><td>{row['участники'] if pd.notna(row['участники']) else '—'}</td></tr>
             <tr><td><b>Округ:</b></td><td>{row['округ_код']}</td></tr>
             <tr><td><b>Этаж:</b></td><td>{row['этаж_норм']}</td></tr>
+            <tr><td><b>Usage:</b></td><td>{likely_usage}</td></tr>
+            <tr><td><b>Company:</b></td><td>{likely_company}</td></tr>
+            <tr><td><b>Match:</b></td><td>{row['match_confidence_label']}</td></tr>
         </table>
         <br><a href="{row['url']}" target="_blank" style="color: #1a73e8;">→ Подробнее на investmoscow.ru</a>
     </div>
@@ -251,7 +283,7 @@ for _, row in filtered.iterrows():
         fill=True,
         fill_color=row["color"],
         fill_opacity=0.75,
-        popup=folium.Popup(popup_html, max_width=360),
+        popup=folium.Popup(popup_html, max_width=380),
         weight=1,
     ).add_to(map_obj)
 
@@ -282,7 +314,9 @@ with legend_right:
     )
 
 st.subheader("Участники ↔ превышение")
-corr_df = filtered[filtered["участники"].notna() & filtered["превышение_цены_%"].notna() & (filtered["участники"] > 0)].copy()
+corr_df = filtered[
+    filtered["участники"].notna() & filtered["превышение_цены_%"].notna() & (filtered["участники"] > 0)
+].copy()
 if len(corr_df) > 1:
     fig, ax = plt.subplots(figsize=(12, 5))
     scatter = ax.scatter(
@@ -312,16 +346,14 @@ st.subheader("Данные")
 st.caption(f"Показано {len(filtered)} из {len(df)} записей")
 
 csv_data = filtered.to_csv(index=False, encoding="utf-8-sig")
-st.download_button(
-    "Скачать CSV",
-    data=csv_data,
-    file_name="property_goals_filtered.csv",
-    mime="text/csv",
-)
+st.download_button("Скачать CSV", data=csv_data, file_name="property_goals_filtered.csv", mime="text/csv")
 
 display_df = filtered.copy()
 display_df["ссылка_на_лот"] = display_df["url"].fillna("")
 display_cols = [
+    "match_confidence_label",
+    "likely_company",
+    "likely_usage",
     "превышение_цены_%",
     "участники",
     "ссылка_на_лот",
@@ -342,6 +374,9 @@ st.dataframe(
     height=420,
     hide_index=True,
     column_config={
+        "match_confidence_label": "Usage match",
+        "likely_company": "Likely company",
+        "likely_usage": "Likely usage",
         "превышение_цены_%": st.column_config.NumberColumn("Превышение", format="%+.1f%%"),
         "участники": "Участники",
         "ссылка_на_лот": st.column_config.LinkColumn("Лот", width="small"),
