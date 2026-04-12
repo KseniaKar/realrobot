@@ -499,6 +499,9 @@ selected_form = form_options[form_labels.index(selected_idx)]
 if selected_form != "Все":
     filtered = filtered[filtered["форма_проведения"] == selected_form]
 
+if selected_form == "Открытый аукцион в электронной форме":
+    filtered = filtered[filtered["статус_торга"] != "Отказ победителя"]
+
 # Показываем текущую форму
 if selected_form != "Все":
     st.subheader(f"📋 {selected_form}")
