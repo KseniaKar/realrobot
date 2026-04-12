@@ -320,10 +320,9 @@ st.download_button(
 )
 
 display_df = filtered.copy()
-display_df["превышение_display"] = display_df["превышение_цены_%"].apply(lambda x: f"{x:+.1f}%")
 display_df["ссылка_на_лот"] = display_df["url"].fillna("")
 display_cols = [
-    "превышение_display",
+    "превышение_цены_%",
     "участники",
     "ссылка_на_лот",
     "номер_лота",
@@ -343,7 +342,7 @@ st.dataframe(
     height=420,
     hide_index=True,
     column_config={
-        "превышение_display": "Превышение",
+        "превышение_цены_%": st.column_config.NumberColumn("Превышение", format="%+.1f%%"),
         "участники": "Участники",
         "ссылка_на_лот": st.column_config.LinkColumn("Лот", width="small"),
         "номер_лота": None,
