@@ -195,6 +195,8 @@ st.caption(f"Build: {APP_BUILD}")
 
 all_forms = sorted(df["форма_проведения"].dropna().unique())
 selected_form = st.selectbox("Форма проведения", ["Все"] + all_forms, index=0)
+all_match_conf = [item for item in ["High", "Medium", "Low", "Нет"] if item in set(df["match_confidence_label"].dropna().unique())]
+selected_match_conf = st.selectbox("Usage match", ["Все"] + all_match_conf, index=0)
 
 st.sidebar.title("Фильтры")
 
@@ -206,9 +208,6 @@ selected_okrugs = st.sidebar.multiselect("Округ", all_okrugs, default=all_o
 
 all_floors = [item for item in FLOOR_ORDER if item in set(df["этаж_норм"].dropna().unique())]
 selected_floors = st.sidebar.multiselect("Этаж", all_floors, default=all_floors)
-
-all_match_conf = [item for item in ["High", "Medium", "Low", "Нет"] if item in set(df["match_confidence_label"].dropna().unique())]
-selected_match_conf = st.sidebar.multiselect("Usage match", all_match_conf, default=all_match_conf)
 
 area_range = st.sidebar.slider(
     "Площадь, м²",
@@ -239,7 +238,7 @@ filtered = df[
     & df["год_торгов"].isin(selected_years)
     & df["округ_код"].isin(selected_okrugs)
     & df["этаж_норм"].isin(selected_floors)
-    & df["match_confidence_label"].isin(selected_match_conf)
+    & ((df["match_confidence_label"] == selected_match_conf) if selected_match_conf != "Все" else True)
     & df["площадь_м²"].between(area_range[0], area_range[1])
     & df["итоговая_цена_млн"].between(price_range[0], price_range[1])
     & df["превышение_цены_%"].between(excess_range[0], excess_range[1])
