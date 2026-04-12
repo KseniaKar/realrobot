@@ -448,20 +448,21 @@ if selected_form != "Все":
 if selected_form != "Все":
     st.subheader(f"📋 {selected_form}")
 
-# Статистика
-n_successful = len(filtered[filtered["статус_торга"] == "Состоялся"])
+# Статистика (без учёта отказов)
+stats_df = filtered[~filtered["есть_протокол_отказа"]]
+n_successful = len(stats_df[stats_df["статус_торга"] == "Состоялся"])
 col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Всего лотов", len(filtered))
 with col2:
     if n_successful > 0:
-        avg_excess = filtered[filtered["превышение_цены_%"] >= 0]["превышение_цены_%"].mean()
+        avg_excess = stats_df[stats_df["превышение_цены_%"] >= 0]["превышение_цены_%"].mean()
         st.metric("Ср. превышение", f"+{avg_excess:.1f}%")
     else:
         st.metric("Ср. превышение", "—")
 with col3:
     if n_successful > 0:
-        avg_price_m2 = filtered[filtered["итоговая_цена_руб"].notna()]["цена_за_м²"].mean()
+        avg_price_m2 = stats_df[stats_df["итоговая_цена_руб"].notna()]["цена_за_м²"].mean()
         st.metric("Ср. цена за м²", f"{avg_price_m2/1e3:.0f}K ₽")
     else:
         st.metric("Ср. цена за м²", "—")
@@ -626,7 +627,8 @@ if df_proto is not None and "participants_count" in df_proto.columns:
     df_proto = df_proto[["lot_id", "participants_count", "winner", "winner_price"]].copy()
 
     # Используем filtered (там уже есть participants_count из раннего merge)
-    df_merged = filtered.copy()
+    # Исключаем лоты с отказом из статистики
+    df_merged = filtered[~filtered["есть_протокол_отказа"]].copy()
 
     # НЕ меняем participants_count — считаем как есть
     # 0 = реально 0 участников, NaN = нет данных (Нет протокола)
