@@ -17,6 +17,8 @@ import json
 import re
 
 APP_BUILD = "2026-04-12-refusal-list-v4"
+CORRELATION_EXCESS_MIN = -100.0
+CORRELATION_EXCESS_MAX = 200.0
 
 # Определяем базовую директорию
 # Если запущено из поддиректории (web-parsers/investmoskow_before/), ищем данные там
@@ -827,10 +829,19 @@ if df_proto is not None and "participants_count" in df_proto.columns:
         )
 
         # Корреляция
-        valid = df_has[(df_has["участники"] > 0) & (df_has["превышение_цены_%"].notna())]
+        valid = df_has[
+            (df_has["участники"] > 0)
+            & (df_has["превышение_цены_%"].notna())
+            & (df_has["превышение_цены_%"] >= CORRELATION_EXCESS_MIN)
+            & (df_has["превышение_цены_%"] <= CORRELATION_EXCESS_MAX)
+        ]
         if len(valid) > 1:
             corr = valid[["участники", "превышение_цены_%"]].corr().iloc[0, 1]
             st.caption(f"Корреляция (участники ↔ превышение): r = {corr:.3f}")
+            st.caption(
+                f"Для корреляции исключены выбросы вне диапазона "
+                f"{CORRELATION_EXCESS_MIN:.0f}% … {CORRELATION_EXCESS_MAX:.0f}%."
+            )
 
     else:
         st.info("Нет данных об участниках для отфильтрованных лотов")
