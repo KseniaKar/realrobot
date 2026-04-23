@@ -266,11 +266,14 @@ col3.metric("Ср. итоговая цена", f"{filtered['итоговая_ц�
 matched_count = int(filtered["likely_company"].fillna("").astype(str).str.strip().ne("").sum())
 col4.metric("Usage matched", matched_count)
 
-center_lat = filtered["latitude"].mean() if len(filtered) else 55.7558
-center_lon = filtered["longitude"].mean() if len(filtered) else 37.6173
+map_df = filtered[filtered["match_confidence"].fillna("").astype(str).str.strip().ne("")].copy()
+st.caption(f"На карте показаны только лоты с Usage match: {len(map_df)} из {len(filtered)} в текущем фильтре.")
+
+center_lat = map_df["latitude"].mean() if len(map_df) else 55.7558
+center_lon = map_df["longitude"].mean() if len(map_df) else 37.6173
 map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=10, tiles="CartoDB positron")
 
-for _, row in filtered.iterrows():
+for _, row in map_df.iterrows():
     likely_company = safe_text(row["likely_company"])
     likely_usage = safe_text(row["likely_usage"])
     popup_html = f"""
