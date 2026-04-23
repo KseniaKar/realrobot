@@ -199,6 +199,11 @@ def load_data() -> pd.DataFrame:
     df["match_confidence"] = df["match_confidence"].fillna("").astype(str)
     df["match_confidence_label"] = df["match_confidence"].apply(format_match_confidence)
     df["match_after_days"] = pd.to_numeric(df["match_after_days"], errors="coerce")
+    df["match_source_label"] = np.where(
+        df["match_time_window"].fillna("").astype(str).eq("0-180d_recent_2026-04"),
+        "April 2026 recent",
+        np.where(df["match_confidence"].fillna("").astype(str).str.strip().ne(""), "Baseline 180-365d", "No match"),
+    )
     return df
 
 
@@ -212,6 +217,8 @@ all_forms = sorted(df["форма_проведения"].dropna().unique())
 selected_form = st.selectbox("Форма проведения", ["Все"] + all_forms, index=0)
 all_match_conf = [item for item in ["High", "Medium", "Low", "Нет"] if item in set(df["match_confidence_label"].dropna().unique())]
 selected_match_conf = st.selectbox("Usage match", ["Все"] + all_match_conf, index=0)
+all_match_sources = ["April 2026 recent", "Baseline 180-365d", "No match"]
+selected_match_source = st.selectbox("Match source", ["All matches"] + all_match_sources, index=1)
 
 st.sidebar.title("Фильтры")
 
@@ -254,6 +261,11 @@ filtered = df[
     & df["округ_код"].isin(selected_okrugs)
     & df["этаж_норм"].isin(selected_floors)
     & ((df["match_confidence_label"] == selected_match_conf) if selected_match_conf != "Все" else True)
+    & (
+        (df["match_source_label"].isin(["April 2026 recent", "Baseline 180-365d"]))
+        if selected_match_source == "All matches"
+        else (df["match_source_label"] == selected_match_source)
+    )
     & df["площадь_м²"].between(area_range[0], area_range[1])
     & df["итоговая_цена_млн"].between(price_range[0], price_range[1])
     & df["превышение_цены_%"].between(excess_range[0], excess_range[1])
@@ -370,6 +382,7 @@ st.download_button("Скачать CSV", data=csv_data, file_name="property_goal
 display_df = filtered.copy()
 display_df["ссылка_на_лот"] = display_df["url"].fillna("")
 display_cols = [
+    "match_source_label",
     "match_confidence_label",
     "match_after_days",
     "likely_company",
@@ -394,6 +407,7 @@ st.dataframe(
     height=420,
     hide_index=True,
     column_config={
+        "match_source_label": "Match source",
         "match_confidence_label": "Usage match",
         "match_after_days": st.column_config.NumberColumn("Days to match", format="%d"),
         "likely_company": "Likely company",
