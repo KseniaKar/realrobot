@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import csv
+import math
+import re
 import shutil
 from calendar import monthrange
 from datetime import date
+from difflib import SequenceMatcher
 from pathlib import Path
 
 
@@ -24,6 +27,9 @@ ENRICHED_OUT = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 MIN_AFTER_DAYS = 180
 MAX_AFTER_DAYS = 365
 KEEP_DISTANCE_BANDS = {"0-30m", "30-100m", "100-250m"}
+PREEXISTING_NAME_GEO_RADIUS_M = 100
+PREEXISTING_NAME_SIMILARITY = 0.8
+SPATIAL_CELL_DEGREES = 0.002
 
 SNAPSHOT_LABELS = [
     "2020-04",
@@ -79,6 +85,68 @@ def compact_values(values: list[str], limit: int) -> str:
     return " | ".join(uniq[:limit])
 
 
+NAME_NOISE_WORDS = {
+    "ооо",
+    "ип",
+    "ао",
+    "зао",
+    "пао",
+    "компания",
+    "студия",
+    "клуб",
+    "центр",
+    "магазин",
+    "салон",
+    "сеть",
+    "район",
+    "филиал",
+    "пункт",
+    "мастерская",
+    "школа",
+    "интернет",
+    "сайт",
+    "online",
+    "ru",
+    "com",
+    "рф",
+}
+
+
+def normalize_name(value: str) -> str:
+    text = (value or "").lower().replace("ё", "е")
+    text = re.sub(r"[^0-9a-zа-я]+", " ", text)
+    tokens = [token for token in text.split() if len(token) > 1 and token not in NAME_NOISE_WORDS]
+    return " ".join(tokens)
+
+
+def name_similarity(left: str, right: str) -> float:
+    if not left or not right:
+        return 0.0
+    if left in right or right in left:
+        return 1.0
+    return SequenceMatcher(None, left, right).ratio()
+
+
+def to_float(value: str) -> float | None:
+    try:
+        text = str(value).strip().replace(",", ".")
+        if not text:
+            return None
+        return float(text)
+    except Exception:
+        return None
+
+
+def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius = 6371000.0
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    return 2 * radius * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
 def candidate_usage(candidate: dict[str, str]) -> str:
     rubric = (candidate.get("match_rubric") or "").strip()
     subrubric = (candidate.get("match_subrubric") or "").strip()
@@ -129,6 +197,80 @@ def load_first_seen_dates(candidate_ids: set[str]) -> dict[str, date]:
                 first_seen[row_id] = snapshot_date
                 remaining.remove(row_id)
     return first_seen
+
+
+def spatial_key(lat: float, lon: float) -> tuple[int, int]:
+    return int(lat / SPATIAL_CELL_DEGREES), int(lon / SPATIAL_CELL_DEGREES)
+
+
+def neighbor_keys(key: tuple[int, int]):
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            yield key[0] + dx, key[1] + dy
+
+
+def load_preexisting_name_geo_keys(candidates: list[dict[str, str]], best_by_lot: dict[str, dict[str, str]]) -> set[tuple[str, str]]:
+    targets: list[dict[str, object]] = []
+    for candidate in candidates:
+        lot_id = candidate.get("lot_id", "")
+        purchase_date = parse_iso_date(best_by_lot.get(lot_id, {}).get("purchase_date", ""))
+        match_lat = to_float(candidate.get("match_lat", ""))
+        match_lon = to_float(candidate.get("match_lon", ""))
+        name_norm = normalize_name(candidate.get("match_name", ""))
+        if not lot_id or not purchase_date or match_lat is None or match_lon is None or not name_norm:
+            continue
+        targets.append(
+            {
+                "lot_id": lot_id,
+                "match_id": candidate.get("match_id", ""),
+                "purchase_date": purchase_date,
+                "lat": match_lat,
+                "lon": match_lon,
+                "name_norm": name_norm,
+            }
+        )
+
+    preexisting_keys: set[tuple[str, str]] = set()
+    for label in SNAPSHOT_LABELS:
+        snapshot_date = SNAPSHOT_DATES[label]
+        active_targets = [target for target in targets if snapshot_date < target["purchase_date"]]
+        if not active_targets:
+            continue
+
+        grid: dict[tuple[int, int], list[dict[str, object]]] = {}
+        for target in active_targets:
+            key = spatial_key(float(target["lat"]), float(target["lon"]))
+            grid.setdefault(key, []).append(target)
+
+        path = MOSCOW_DIR / f"{label}.with_norm.csv"
+        if not path.exists():
+            continue
+
+        with path.open("r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                row_lat = to_float(row.get("lat", ""))
+                row_lon = to_float(row.get("lon", ""))
+                row_name_norm = normalize_name(row.get("name", ""))
+                if row_lat is None or row_lon is None or not row_name_norm:
+                    continue
+
+                nearby_targets: list[dict[str, object]] = []
+                for key in neighbor_keys(spatial_key(row_lat, row_lon)):
+                    nearby_targets.extend(grid.get(key, []))
+                if not nearby_targets:
+                    continue
+
+                for target in nearby_targets:
+                    distance_m = haversine_m(row_lat, row_lon, float(target["lat"]), float(target["lon"]))
+                    if distance_m > PREEXISTING_NAME_GEO_RADIUS_M:
+                        continue
+                    similarity = name_similarity(row_name_norm, str(target["name_norm"]))
+                    if similarity < PREEXISTING_NAME_SIMILARITY:
+                        continue
+                    preexisting_keys.add((str(target["lot_id"]), str(target["match_id"])))
+
+    return preexisting_keys
 
 
 def build_likely_row(best: dict[str, str], candidates: list[dict[str, str]]) -> dict[str, str] | None:
@@ -273,21 +415,34 @@ def main() -> None:
     }
     first_seen_dates = load_first_seen_dates(candidate_ids)
 
-    likely_rows: list[dict[str, str]] = []
+    candidates_after_id_filter: list[dict[str, str]] = []
+    candidates_by_lot_after_id_filter: dict[str, list[dict[str, str]]] = {}
     dropped_preexisting_candidates = 0
-    dropped_preexisting_lots = 0
 
     for lot_id, best in time_window_lots.items():
         purchase_date = parse_iso_date(best.get("purchase_date", ""))
-        filtered_candidates: list[dict[str, str]] = []
         for candidate in geo_by_lot.get(lot_id, []):
             match_id = (candidate.get("match_id") or "").strip()
             first_seen = first_seen_dates.get(match_id)
             if purchase_date and first_seen and first_seen < purchase_date:
                 dropped_preexisting_candidates += 1
                 continue
-            filtered_candidates.append(candidate)
+            candidates_after_id_filter.append(candidate)
+            candidates_by_lot_after_id_filter.setdefault(lot_id, []).append(candidate)
 
+    preexisting_name_geo_keys = load_preexisting_name_geo_keys(candidates_after_id_filter, best_by_lot)
+
+    likely_rows: list[dict[str, str]] = []
+    dropped_preexisting_name_geo_candidates = 0
+    dropped_preexisting_lots = 0
+    for lot_id, best in time_window_lots.items():
+        filtered_candidates: list[dict[str, str]] = []
+        for candidate in candidates_by_lot_after_id_filter.get(lot_id, []):
+            key = (lot_id, (candidate.get("match_id") or "").strip())
+            if key in preexisting_name_geo_keys:
+                dropped_preexisting_name_geo_candidates += 1
+                continue
+            filtered_candidates.append(candidate)
         likely_row = build_likely_row(best, filtered_candidates)
         if likely_row:
             likely_rows.append(likely_row)
@@ -302,7 +457,10 @@ def main() -> None:
             "time_window_lots_before_preexisting_filter": len(time_window_lots),
             "kept_matches": len(likely_rows),
             "dropped_lots_after_preexisting_filter": dropped_preexisting_lots,
-            "dropped_preexisting_candidates": dropped_preexisting_candidates,
+            "dropped_preexisting_id_candidates": dropped_preexisting_candidates,
+            "dropped_preexisting_name_geo_candidates": dropped_preexisting_name_geo_candidates,
+            "preexisting_name_geo_radius_m": PREEXISTING_NAME_GEO_RADIUS_M,
+            "preexisting_name_similarity": PREEXISTING_NAME_SIMILARITY,
             "time_window_days": f"{MIN_AFTER_DAYS}-{MAX_AFTER_DAYS}",
             "likely_out": str(LIKELY_OUT),
             "enriched_out": str(ENRICHED_OUT),
