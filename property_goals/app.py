@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-12-property-goals-enriched-geo-v4"
+APP_BUILD = "2026-04-23-property-goals-time-filtered-v1"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -185,11 +185,20 @@ def load_data() -> pd.DataFrame:
     )
     df["участники"] = df["participants_count"].apply(lambda x: int(x) if pd.notna(x) else None)
 
-    for col in ["likely_company", "likely_usage", "company_candidates_preview", "usage_candidates_preview", "match_confidence"]:
+    for col in [
+        "likely_company",
+        "likely_usage",
+        "company_candidates_preview",
+        "usage_candidates_preview",
+        "match_confidence",
+        "match_after_days",
+        "match_time_window",
+    ]:
         if col not in df.columns:
             df[col] = ""
     df["match_confidence"] = df["match_confidence"].fillna("").astype(str)
     df["match_confidence_label"] = df["match_confidence"].apply(format_match_confidence)
+    df["match_after_days"] = pd.to_numeric(df["match_after_days"], errors="coerce")
     return df
 
 
@@ -359,6 +368,7 @@ display_df = filtered.copy()
 display_df["ссылка_на_лот"] = display_df["url"].fillna("")
 display_cols = [
     "match_confidence_label",
+    "match_after_days",
     "likely_company",
     "likely_usage",
     "превышение_цены_%",
@@ -382,6 +392,7 @@ st.dataframe(
     hide_index=True,
     column_config={
         "match_confidence_label": "Usage match",
+        "match_after_days": st.column_config.NumberColumn("Days to match", format="%d"),
         "likely_company": "Likely company",
         "likely_usage": "Likely usage",
         "превышение_цены_%": st.column_config.NumberColumn("Превышение", format="%+.1f%%"),

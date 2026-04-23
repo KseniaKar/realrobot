@@ -172,3 +172,29 @@
 ```bash
 streamlit run property_goals/app.py
 ```
+
+## Текущий временной фильтр matching
+
+Финальная витрина теперь использует только совпадения, где организация появилась в ближайшем `after`-снапшоте через `180-365` дней после даты покупки.
+
+Это убирает дальние совпадения через несколько лет, которые технически совпадают по адресу, но плохо объясняют пост-покупочное использование помещения.
+
+Текущий итог после фильтра:
+
+- `110` matched lots
+- `high`: `54`
+- `medium`: `54`
+- `low`: `2`
+
+Файлы:
+
+- `matches/property_usage_likely_summary_geo_time_filtered.csv` — audit-файл только с матчами в окне `180-365` дней.
+- `matches/property_usage_likely_summary_geo.csv` — основной summary matching, тоже очищен до окна `180-365` дней.
+- `matches/property_usage_likely_summary_geo_unfiltered.csv` — исходный geo-summary до временного фильтра, только для аудита.
+- `investmoscow_sold_2022_2026_enriched_geo.csv` — финальный файл для приложения, уже очищенный от дальних совпадений.
+
+Пересборка:
+
+```bash
+python rebuild_time_filtered_matches.py
+```
