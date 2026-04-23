@@ -183,12 +183,49 @@ streamlit run property_goals/app.py
 
 Еще один защитный фильтр ищет похожее название организации в радиусе `100 м` в старых снапшотах до покупки. Это ловит случаи, когда `match_id` изменился, но бизнес, по сути, уже был рядом до продажи.
 
-Текущий итог после фильтра:
+Текущий baseline итог после фильтра `180-365` дней:
 
 - `90` matched lots
 - `high`: `40`
 - `medium`: `49`
 - `low`: `1`
+
+## Snapshot 2026-04 и recent matching
+
+Добавлен свежий справочник `moscow/2026-04.xlsx`, приведенный к формату pipeline:
+
+- `moscow/2026-04.normalized.csv`
+- `moscow/2026-04.with_norm.csv`
+
+В апрельском snapshot:
+
+- `399586` организаций с адресами
+- `43302` новых `ID` относительно `2026-03`
+
+Для недавних продаж построен отдельный recent matching:
+
+- окно продаж: `0-180` дней до `2026-04-30`
+- recent lots в окне: `474`
+- matched lots по новым апрельским организациям: `150`
+- candidates: `395`
+- в основную витрину добавлены только `high/medium`: `95`
+
+Финальная витрина приложения теперь содержит:
+
+- всего matched lots: `185`
+- baseline `180-365d`: `90`
+- recent `0-180d_recent_2026-04`: `95`
+- `high`: `71`
+- `medium`: `113`
+- `low`: `1`
+
+Файлы recent matching:
+
+- `matches/moscow_2026_04_new_organizations.csv`
+- `matches/moscow_2026_04_new_organizations_stats.csv`
+- `matches/property_usage_recent_2026_04_candidates.csv`
+- `matches/property_usage_recent_2026_04_summary.csv`
+- `matches/property_usage_combined_summary.csv`
 
 Почему матчей мало:
 
@@ -208,4 +245,7 @@ streamlit run property_goals/app.py
 
 ```bash
 python rebuild_time_filtered_matches.py
+python process_2026_04_snapshot.py
+python match_recent_2026_04.py
+python merge_recent_2026_04_matches.py
 ```
