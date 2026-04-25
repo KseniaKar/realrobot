@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-23-property-goals-2026-04-recent-v1"
+APP_BUILD = "2026-04-25-revalidated-matches-v2"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -199,11 +199,20 @@ def load_data() -> pd.DataFrame:
     df["match_confidence"] = df["match_confidence"].fillna("").astype(str)
     df["match_confidence_label"] = df["match_confidence"].apply(format_match_confidence)
     df["match_after_days"] = pd.to_numeric(df["match_after_days"], errors="coerce")
-    df["match_source_label"] = np.where(
-        df["match_time_window"].fillna("").astype(str).eq("0-180d_recent_2026-04"),
-        "April 2026 recent",
-        np.where(df["match_confidence"].fillna("").astype(str).str.strip().ne(""), "Baseline 180-365d", "No match"),
-    )
+    def _match_source(row) -> str:
+        tw = str(row.get("match_time_window") or "")
+        conf = str(row.get("match_confidence") or "").strip()
+        if tw == "0-180d_recent_2026-04":
+            return "April 2026 recent"
+        if tw.startswith("first_after_snapshot_"):
+            snapshot = tw.replace("first_after_snapshot_", "")
+            return f"First snapshot {snapshot}"
+        if conf:
+            return "Baseline 180-365d"
+        return "No match"
+
+    df["match_source_label"] = df.apply(_match_source, axis=1)
+
     return df
 
 
@@ -217,8 +226,8 @@ all_forms = sorted(df["форма_проведения"].dropna().unique())
 selected_form = st.selectbox("Форма проведения", ["Все"] + all_forms, index=0)
 all_match_conf = [item for item in ["High", "Medium", "Low", "Нет"] if item in set(df["match_confidence_label"].dropna().unique())]
 selected_match_conf = st.selectbox("Usage match", ["Все"] + all_match_conf, index=0)
-all_match_sources = ["April 2026 recent", "Baseline 180-365d", "No match"]
-selected_match_source = st.selectbox("Match source", ["All matches"] + all_match_sources, index=1)
+all_match_sources = sorted(s for s in df["match_source_label"].dropna().unique() if s != "No match")
+selected_match_source = st.selectbox("Match source", ["All matches"] + all_match_sources + ["No match"], index=0)
 
 st.sidebar.title("Фильтры")
 
@@ -262,7 +271,7 @@ filtered = df[
     & df["этаж_норм"].isin(selected_floors)
     & ((df["match_confidence_label"] == selected_match_conf) if selected_match_conf != "Все" else True)
     & (
-        (df["match_source_label"].isin(["April 2026 recent", "Baseline 180-365d"]))
+        df["match_source_label"].ne("No match")
         if selected_match_source == "All matches"
         else (df["match_source_label"] == selected_match_source)
     )
@@ -278,8 +287,13 @@ col3.metric("Ср. итоговая цена", f"{filtered['итоговая_ц�
 matched_count = int(filtered["likely_company"].fillna("").astype(str).str.strip().ne("").sum())
 col4.metric("Usage matched", matched_count)
 
-map_df = filtered[filtered["match_confidence"].fillna("").astype(str).str.strip().ne("")].copy()
-st.caption(f"На карте показаны только лоты с Usage match: {len(map_df)} из {len(filtered)} в текущем фильтре.")
+show_all_map = st.checkbox("Показать все лоты на карте (включая без usage match)", value=False)
+if show_all_map:
+    map_df = filtered.copy()
+    st.caption(f"На карте: {len(map_df)} лотов (все в текущем фильтре).")
+else:
+    map_df = filtered[filtered["match_confidence"].fillna("").astype(str).str.strip().ne("")].copy()
+    st.caption(f"На карте лоты с Usage match: {len(map_df)} из {len(filtered)}. Включите галочку выше для всех лотов.")
 
 center_lat = map_df["latitude"].mean() if len(map_df) else 55.7558
 center_lon = map_df["longitude"].mean() if len(map_df) else 37.6173
@@ -289,7 +303,7 @@ for _, row in map_df.iterrows():
     likely_company = safe_text(row["likely_company"])
     likely_usage = safe_text(row["likely_usage"])
     popup_html = f"""
-    <div style="font-family: Arial, sans-serif; min-width: 320px;">
+    <div style="font-family: Arial, sans-serif; min-width: 340px;">
         <h4 style="margin: 0 0 8px; color: #333;">Лот #{row['номер_лота']}</h4>
         <table style="font-size: 13px; line-height: 1.6;">
             <tr><td><b>Адрес:</b></td><td>{safe_text(row['адрес'])}</td></tr>
