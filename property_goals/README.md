@@ -107,6 +107,8 @@ Baseline matching: временное окно `180-365` дней после п�
 
 - окно: `0-180` дней до `2026-04-30`
 - скрипты: `process_2026_04_snapshot.py` → `match_recent_2026_04.py` → `merge_recent_2026_04_matches.py`
+- применяется тот же фильтр `IMPLAUSIBLE_SUBSTRINGS` (водоматы, постаматы, госслужбы и т.д.)
+- если один и тот же кандидат (`match_id`) является единственным для нескольких лотов в одном здании — confidence понижается до `low` (нельзя определить, в какое именно помещение въехал бизнес)
 
 ### Шаг 7. Реvalidация — фильтр по типу бизнеса
 
@@ -152,10 +154,10 @@ Baseline matching: временное окно `180-365` дней после п�
 
 | Источник | Лотов | High | Medium | Low |
 |----------|-------|------|--------|-----|
-| Baseline `180-365d` | 58 | 16 | 41 | 1 |
-| Recent `0-180d_2026-04` | 90 | 34 | 53 | 3 |
-| First snapshot `2025-09` | 223 | 0 | 223 | 0 |
-| **Итого** | **371** | **50** | **317** | **4** |
+| Baseline `180-365d` | 58 | 13 | 44 | 1 |
+| Recent `0-180d_2026-04` | 36 | 10 | 26 | 0 |
+| First snapshot `2025-09` | 223 | 10 | 210 | 3 |
+| **Итого** | **317** | **33** | **280** | **4** |
 
 По годам продажи:
 
@@ -164,8 +166,8 @@ Baseline matching: временное окно `180-365` дней после п�
 | 2022 | 71 |
 | 2023 | 68 |
 | 2024 | 104 |
-| 2025 | 103 |
-| 2026 | 25 |
+| 2025 | 56 |
+| 2026 | 18 |
 
 ---
 
@@ -201,10 +203,10 @@ streamlit run property_goals/app.py
 ## Пересборка матчинга
 
 ```bash
-py rebuild_time_filtered_matches.py
-py process_2026_04_snapshot.py
-py match_recent_2026_04.py
-py merge_recent_2026_04_matches.py
-py revalidate_matches.py
-py recover_lost_matches.py
+py rebuild_time_filtered_matches.py      # baseline 180-365d matches → enriched
+py revalidate_matches.py                 # очистка невалидных кандидатов
+py process_2026_04_snapshot.py           # обработка снапшота апрель 2026
+py match_recent_2026_04.py               # recent кандидаты (0-180d)
+py merge_recent_2026_04_matches.py       # слияние recent в enriched (идемпотентно)
+py recover_lost_matches.py               # восстановление лотов 2022-2024
 ```
