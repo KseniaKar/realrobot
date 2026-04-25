@@ -19,6 +19,18 @@ SNAPSHOT_DATE = date(2026, 4, 30)
 MAX_DAYS_AFTER_PURCHASE = 180
 MAX_DISTANCE_M = 250
 
+IMPLAUSIBLE_SUBSTRINGS = [
+    "Станции зарядки телефонов",
+    "Постаматы",
+    "Питьевая вода",
+    "Кофейные автоматы",
+    "Аварийные / справочные / экстренные службы -> Справочные",
+    "Жилищно-коммунальные",
+    "Правоохранительные органы",
+    "Новостройки -> Новостройки",
+    "Общественные / политические организации",
+]
+
 
 def parse_lot_date(value: str) -> date | None:
     value = (value or "").strip()
@@ -86,6 +98,10 @@ def usage(row: dict[str, str]) -> str:
     if rubric and subrubric:
         return f"{rubric} -> {subrubric}"
     return rubric or subrubric
+
+
+def is_implausible(usage_str: str) -> bool:
+    return any(sub in usage_str for sub in IMPLAUSIBLE_SUBSTRINGS)
 
 
 def load_recent_lots() -> list[dict[str, str]]:
@@ -168,6 +184,9 @@ def main() -> None:
                 distance_m = haversine_m(lot_lat, lot_lon, org_lat, org_lon)
                 if distance_m > MAX_DISTANCE_M:
                     continue
+                usage_str = usage({"rubric": org.get("rubric", ""), "subrubric": org.get("subrubric", "")})
+                if is_implausible(usage_str):
+                    continue
                 out = {
                     "lot_id": lot.get("номер_лота", ""),
                     "url": lot.get("url", ""),
@@ -209,12 +228,33 @@ def main() -> None:
         "company_candidates_preview",
         "usage_candidates_preview",
     ]
+    # Detect: same best match_id shared by multiple lots at the same address_norm.
+    # One company can only occupy one premise → downgrade shared-best matches to "low".
+    best_match_id_by_lot: dict[str, str] = {}
+    address_norm_by_lot: dict[str, str] = {}
+    for lot_id, candidates in candidates_by_lot.items():
+        cands_sorted = sorted(candidates, key=lambda r: float(r["distance_m"]))
+        best_match_id_by_lot[lot_id] = cands_sorted[0]["match_id"]
+        address_norm_by_lot[lot_id] = cands_sorted[0]["lot_address_norm"]
+
+    # Count how many lots at each (address_norm, match_id) pair share the same best candidate.
+    from collections import Counter
+    shared_key_counts: Counter = Counter(
+        (address_norm_by_lot[lid], mid)
+        for lid, mid in best_match_id_by_lot.items()
+    )
+
     with SUMMARY_OUT.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=summary_fields)
         writer.writeheader()
         for lot_id, candidates in sorted(candidates_by_lot.items()):
             candidates = sorted(candidates, key=lambda row: float(row["distance_m"]))
             conf = confidence_for_candidates(candidates)
+            # Downgrade if the same best candidate is shared by multiple lots in the same building.
+            best_mid = candidates[0]["match_id"]
+            addr_norm = candidates[0]["lot_address_norm"]
+            if shared_key_counts[(addr_norm, best_mid)] > 1:
+                conf = "low"
             companies = [row["match_name"] for row in candidates]
             usages = [usage({"rubric": row["match_rubric"], "subrubric": row["match_subrubric"]}) for row in candidates]
             first = candidates[0]

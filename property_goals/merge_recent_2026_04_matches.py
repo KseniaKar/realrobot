@@ -25,10 +25,29 @@ def load_recent_matches() -> dict[str, dict[str, str]]:
     return matches
 
 
+RECENT_TIME_WINDOW = "0-180d_recent_2026-04"
+
+MATCH_FIELDS = [
+    "match_before_snapshot_label",
+    "match_after_snapshot_label",
+    "match_before_company_count",
+    "match_after_company_count",
+    "match_new_company_count",
+    "match_after_days",
+    "match_time_window",
+    "likely_company",
+    "likely_usage",
+    "match_confidence",
+    "company_candidates_preview",
+    "usage_candidates_preview",
+]
+
+
 def main() -> None:
     recent = load_recent_matches()
     added = 0
-    existing_matched = 0
+    cleared = 0
+    existing_other = 0
 
     with ENRICHED_PATH.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
@@ -37,8 +56,17 @@ def main() -> None:
 
     for row in rows:
         lot_id = row.get("номер_лота", "")
+        existing_tw = (row.get("match_time_window") or "").strip()
+        existing_conf = (row.get("match_confidence") or "").strip()
+
+        # Clear previous recent matches so we can re-apply with updated confidence.
+        if existing_conf and existing_tw == RECENT_TIME_WINDOW:
+            for field in MATCH_FIELDS:
+                row[field] = ""
+            cleared += 1
+
         if (row.get("match_confidence") or "").strip():
-            existing_matched += 1
+            existing_other += 1
             continue
         match = recent.get(lot_id)
         if not match:
@@ -49,7 +77,7 @@ def main() -> None:
         row["match_after_company_count"] = match.get("candidate_count", "")
         row["match_new_company_count"] = match.get("candidate_count", "")
         row["match_after_days"] = match.get("days_after_purchase", "")
-        row["match_time_window"] = "0-180d_recent_2026-04"
+        row["match_time_window"] = RECENT_TIME_WINDOW
         row["likely_company"] = match.get("likely_company", "")
         row["likely_usage"] = match.get("likely_usage", "")
         row["match_confidence"] = match.get("confidence", "")
@@ -99,7 +127,8 @@ def main() -> None:
 
     print(
         {
-            "existing_matched_before_recent": existing_matched,
+            "cleared_old_recent_matches": cleared,
+            "existing_other_matches": existing_other,
             "recent_high_medium_available": len(recent),
             "recent_added_to_enriched": added,
             "enriched": str(ENRICHED_PATH),
