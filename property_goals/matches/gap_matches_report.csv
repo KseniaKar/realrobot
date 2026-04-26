@@ -50,7 +50,7 @@
 18710278,added,,gap_snapshot_2022-12,,medium,87,"Багира, салон красоты | Гост, оптика | Столички, аптека"
 18719169,added,,gap_snapshot_2022-12,,medium,72,"Соната клиник, центр стоматологии и косметологии | ГОРЗДРАВ, аптека №504 | Glowsubs sandwiches, кафе быстрого обслуживания"
 18730608,added,,gap_snapshot_2022-12,,medium,64,"Восточное Измайлово, территориальный центр социального обслуживания"
-18596549,upgraded,first_after_snapshot_2025-09,gap_snapshot_2023-12,medium,medium,304,"Ремонтная мастерская, Ремонтная мастерская"
+18596549,added,,gap_snapshot_2023-12,,medium,304,"Ремонтная мастерская, Ремонтная мастерская"
 18828364,added,,gap_snapshot_2023-12,,medium,342,"Dolls, мужской клуб | Пятёрочка, супермаркет"
 18829611,added,,gap_snapshot_2023-12,,high,345,Экспресс-кофейня
 18830746,added,,gap_snapshot_2023-12,,high,338,"Патриот групп, кадровое агентство"
@@ -63,7 +63,7 @@
 18884886,added,,gap_snapshot_2023-12,,medium,313,"Фармленд, аптека | Energy records, студия звукозаписи"
 18885206,added,,gap_snapshot_2023-12,,high,313,"Мастерская здоровья, Мастерская здоровья"
 18887029,added,,gap_snapshot_2023-12,,high,303,"Alif dent, стоматологическая клиника"
-18888261,upgraded,first_after_snapshot_2025-09,gap_snapshot_2023-12,medium,high,306,"GastroMind, PR-агентство"
+18888261,added,,gap_snapshot_2023-12,,high,306,"GastroMind, PR-агентство"
 18888266,added,,gap_snapshot_2023-12,,high,306,"Золотая корона, пункт платежных сервисов"
 18890564,added,,gap_snapshot_2023-12,,medium,293,"Инспекция по контролю за благоустройством городских территорий, Инспекция по контролю за благоустройством городских территорий | Алексей Степанов и партнеры, юридическая консультация | Двм принт, рекламно-производственная компания"
 18907645,added,,gap_snapshot_2023-12,,medium,299,"Аптечество, аптечный пункт"
@@ -161,10 +161,10 @@
 19303058,added,,gap_snapshot_2023-12,,high,62,"Бери заряд!, станция зарядки телефонов"
 19304192,added,,gap_snapshot_2023-12,,high,62,"#Добрыекрышечки, пункт приема мелких партий крышек"
 19332408,added,,gap_snapshot_2024-05,,high,197,"Горздрав , аптека"
-19332942,upgraded,first_after_snapshot_2025-09,gap_snapshot_2024-09,medium,medium,318,"Casa del ritmo, школа танцев | Back to travel"
+19332942,added,,gap_snapshot_2024-09,,medium,318,"Casa del ritmo, школа танцев | Back to travel"
 19352510,added,,gap_snapshot_2024-05,,high,191,"Хмель&Солод, магазин разливных напитков"
 19359234,added,,gap_snapshot_2024-05,,high,178,"Кладовкин, центр хранения вещей"
-19363937,upgraded,first_after_snapshot_2025-09,gap_snapshot_2024-09,medium,high,311,"Barberdog, груминг-салон"
+19363937,added,,gap_snapshot_2024-09,,high,311,"Barberdog, груминг-салон"
 19379328,added,,gap_snapshot_2024-09,,medium,299,"Youth shop, магазин одежды | Nail Land, студия маникюра | Nërd, мастерская крафтовой парфюмерии"
 19379353,added,,gap_snapshot_2024-05,,medium,177,"Красное&Белое, магазин алкогольных напитков | Box69.ru, склад | Яндекс Лавка, служба доставки продуктов"
 19380046,added,,gap_snapshot_2024-10,,medium,330,Торговая компания
@@ -173,7 +173,7 @@
 19394527,added,,gap_snapshot_2024-05,,medium,169,Мини-маркет
 19405844,added,,gap_snapshot_2024-05,,medium,161,"Mango лавка, компания | Berry Present, служба доставки"
 18805521,added,,gap_snapshot_2024-10,,high,69,Даровит-Агро
-19429720,upgraded,first_after_snapshot_2025-09,gap_snapshot_2024-10,medium,high,274,"Est.Epil White, студия красоты"
+19429720,added,,gap_snapshot_2024-10,,high,274,"Est.Epil White, студия красоты"
 19433801,added,,gap_snapshot_2024-05,,medium,105,Ozon | Центр по ремонту бытовой техники
 19434238,added,,gap_snapshot_2024-05,,medium,105,Салон-парикмахерская
 19435255,added,,gap_snapshot_2024-05,,medium,105,"Sun&City, cолярий-клуб и лаборатория красоты | LuxeGroup"
@@ -247,7 +247,7 @@
 19676258,added,,gap_snapshot_2025-09,,high,326,"Ак Йорт, федеральная сеть экспертного перевода и легализации для бизнеса и частных лиц"
 19676350,added,,gap_snapshot_2025-09,,medium,326,"Hendrix Studio, танцевальная студия | Коровка, мини-маркет"
 19678424,added,,gap_snapshot_2025-09,,medium,337,"Магнит, супермаркет | Экопросто, пункт приема пластиковых крышек"
-19681448,added,,gap_snapshot_2025-09,,medium,342,"Ростовская набережная, 5 | SofiaZharova, шоурум женской одежды"
+19681448,added,,gap_snapshot_2025-09,,medium,342,"SofiaZharova, шоурум женской одежды"
 19690538,added,,gap_snapshot_2025-09,,medium,327,"Хмель&Солод, магазин разливного пива"
 19691799,added,,gap_snapshot_2025-09,,high,327,"Альфа Детки, детский центр нейропсихологии"
 19693921,added,,gap_snapshot_2025-09,,medium,320,"Аист, пункт приёма | Авито, пункт выдачи заказов"
@@ -269,8 +269,8 @@
 19743023,added,,gap_snapshot_2025-09,,high,200,"АКПП-Вариатор-dsg, СТО"
 19746757,added,,gap_snapshot_2025-09,,medium,202,"Крод, Строительная компания | Цветочная лавка, г. Москва | Аль табак HQD, магазин табачной продукции"
 19753326,added,,gap_snapshot_2025-09,,medium,189,"Албин Ганз, оружейный магазин | Банк ВТБ, банк"
-19755375,added,,gap_snapshot_2025-09,,medium,195,"Nor Hayastan Dance, студия | Sola, школа вокала | Армянский переулок, 7"
-19757060,upgraded,first_after_snapshot_2025-09,gap_snapshot_2025-09,high,high,193,Дом быта
+19755375,added,,gap_snapshot_2025-09,,medium,195,"Nor Hayastan Dance, студия | Sola, школа вокала"
+19757060,added,,gap_snapshot_2025-09,,high,193,Дом быта
 19758282,added,,gap_snapshot_2025-09,,high,194,"Красное&Белое, продуктовый магазин"
 19760837,added,,gap_snapshot_2026-02,,medium,332,"Ozon | Магнит, супермаркет"
 19761522,added,,gap_snapshot_2025-09,,medium,188,"Золотая Корона, система платёжных сервисов | Piazza roma, магазин"
@@ -297,8 +297,7 @@
 19783882,added,,gap_snapshot_2026-02,,medium,282,"Ozon | Яндекс Маркет, пункт выдачи интернет-заказов | Wildberries, пункт выдачи интернет-заказов"
 19784329,added,,gap_snapshot_2025-09,,high,116,Navesypro. ru
 19784362,added,,gap_snapshot_2025-09,,medium,112,"Lumi, студия косметологии | Ozon | Annetka.hair, студия окрашивания волос"
-19786768,added,,gap_snapshot_2026-04,,medium,324,"Первомайская улица, 128а | Ozon | Яндекс Маркет, пункт выдачи заказов"
-19787096,added,,gap_snapshot_2026-04,,medium,315,"Ярославское шоссе, 136"
+19786768,added,,gap_snapshot_2026-04,,medium,324,"Ozon | Яндекс Маркет, пункт выдачи заказов"
 19787395,added,,gap_snapshot_2026-04,,high,315,"Доходный дом Усова, хостел"
 19787610,added,,gap_snapshot_2026-02,,high,262,"Kser, торговая компания"
 19789412,added,,gap_snapshot_2025-09,,medium,111,"Style-ok.ru, сервисный центр"
@@ -342,7 +341,6 @@
 19865728,added,,gap_snapshot_2026-02,,medium,123,"Красное&Белое, магазин"
 19865990,added,,gap_snapshot_2026-02,,medium,106,"Марквет, зоомагазин и ветеринарная аптека | Оставь багаж, пункт приема | Точка быстрого питания"
 19866367,added,,gap_snapshot_2026-02,,high,123,"Московское долголетие, г. Москва"
-19874597,added,,gap_snapshot_2026-02,,high,102,"Поварская улица, 22"
 19877131,added,,gap_snapshot_2026-02,,medium,113,"Кабинет массажа | PECO-гарантия, страховая компания | Винтаж, магазин антиквариата"
 19878416,added,,gap_snapshot_2026-02,,medium,113,"Московское долголетие, г. Москва"
 19881261,added,,gap_snapshot_2026-02,,high,102,"Много места, сервис по аренде складов"
