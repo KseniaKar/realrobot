@@ -534,7 +534,7 @@ with ki2:
 
 # Дополнительная аналитика
 st.markdown("#### Детали матчинга")
-da1, da2 = st.columns(2)
+da1 = st.container()
 
 with da1:
     st.markdown("**Матчи по году продажи**")
@@ -552,29 +552,4 @@ with da1:
         _by_year.rename(columns={"год_торгов": "Год"}).set_index("Год"),
         use_container_width=True,
     )
-
-with da2:
-    st.markdown("**Источник данных о матче (2022–2026)**")
-    def _source_label(tw: str) -> str:
-        if not tw:
-            return ""
-        if tw.startswith("gap_snapshot_"):
-            return "Промежуточные снэпшоты\n(2022–2026)"
-        if tw.startswith("first_after_snapshot_"):
-            return "Снэпшот 2025-09\n(4-летнее окно)"
-        if tw == "180-365d":
-            return "Baseline\n(180–365 дней)"
-        if "recent" in tw:
-            return "Недавние\n(0–180 дней)"
-        return tw
-    _tw_counts = (
-        _matched["match_time_window"].fillna("").map(_source_label)
-        .value_counts()
-    )
-    fig, ax = plt.subplots(figsize=(5, 3))
-    ax.barh(_tw_counts.index[::-1], _tw_counts.values[::-1])
-    ax.set_xlabel("лотов")
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
 
