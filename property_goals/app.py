@@ -430,3 +430,94 @@ st.dataframe(
         "номер_лота": None,
     },
 )
+
+# ── Инсайты ────────────────────────────────────────────────────────────────
+st.divider()
+st.subheader("Инсайты и выводы")
+
+_matched = df[df["match_confidence"].fillna("").str.strip().ne("")]
+_n = len(_matched)
+_total = len(df)
+_revenue_bln = df["итоговая_цена_млн"].sum() / 1000
+_median_price = df["итоговая_цена_млн"].median()
+_excess_valid = df[df["начальная_цена_руб"] > 0]["превышение_цены_%"].dropna()
+_wb_ozon = _matched["likely_company"].fillna("").str.contains("Wildberries|Ozon", case=False).sum()
+
+# Метрики — строка 1: общая картина
+mc1, mc2, mc3, mc4 = st.columns(4)
+mc1.metric("Лотов продано (2022–2026)", f"{_total:,}".replace(",", " "))
+mc2.metric("Выручка города", f"≈ {_revenue_bln:.0f} млрд ₽")
+mc3.metric("Медиана цены продажи", f"{_median_price:.1f} млн ₽")
+mc4.metric("Доля с превышением цены", f"{(_excess_valid > 0).mean()*100:.0f}%")
+
+# Метрики — строка 2: матчинг и интересные факты
+mc1, mc2, mc3, mc4 = st.columns(4)
+_best_year = df.groupby("год_торгов").size().idxmax()
+_best_year_n = df.groupby("год_торгов").size().max()
+mc1.metric("Лотов с установленным арендатором", f"{_n} ({_n/_total*100:.0f}%)")
+mc2.metric("Маркетплейсы WB + Ozon", f"{_wb_ozon} из {_n} лотов")
+mc3.metric("Пик продаж", f"{_best_year} — {_best_year_n} лотов")
+mc4.metric("Макс. превышение стартовой цены", f"+{_excess_valid.max():.0f}%")
+
+# Графики
+gc1, gc2 = st.columns(2)
+
+with gc1:
+    st.markdown("**Топ категорий арендаторов**")
+    _usage = _matched["likely_usage"].fillna("").str.split("|").str[0].str.strip()
+    def _rubric(s):
+        return s.split("->")[0].strip() if "->" in s else s
+    _rubric_counts = _usage.map(_rubric).value_counts().head(8)
+    _rubric_counts = _rubric_counts[_rubric_counts.index.ne("")]
+    st.bar_chart(_rubric_counts.rename("лотов"))
+
+with gc2:
+    st.markdown("**Топ компаний-арендаторов**")
+    _companies = _matched["likely_company"].fillna("").str.split("|").str[0].str.strip()
+    _companies = _companies[_companies.ne("")]
+    _companies = (
+        _companies
+        .str.replace(r"Wildberries,.*", "Wildberries (ПВЗ)", regex=True)
+        .str.replace(r"Магнит,.*", "Магнит", regex=True)
+        .str.replace(r"Красное&Белое,.*", "Красное&Белое", regex=True)
+        .str.replace(r"Яндекс Маркет,.*", "Яндекс Маркет (ПВЗ)", regex=True)
+        .str.replace(r"Барберхаус,.*", "Барберхаус", regex=True)
+        .str.replace(r"Винлаб,.*", "Винлаб", regex=True)
+    )
+    st.bar_chart(_companies.value_counts().head(10).rename("лотов"))
+
+# Текстовые выводы
+st.markdown("#### Ключевые выводы")
+ki1, ki2 = st.columns(2)
+with ki1:
+    st.info(
+        "**Маркетплейсы — главный тренд.**  \n"
+        "Каждый пятый установленный арендатор — пункт выдачи Wildberries или Ozon. "
+        "Городские помещения массово перепрофилируются под логистику последней мили."
+    )
+    st.info(
+        "**Красота и сервис — второй кластер.**  \n"
+        "Барбершопы, ногтевые студии, стоматологии суммарно ~52 лота. "
+        "Типичный профиль: 50–100 м², 1 этаж, жилой район."
+    )
+    st.info(
+        "**Аукцион реально конкурентный.**  \n"
+        "55% лотов уходят дороже старта, медиана +7.5%. "
+        "Рекорд — превышение +1 250% (×13 от стартовой цены)."
+    )
+with ki2:
+    st.info(
+        "**Публичное предложение — индикатор неликвида.**  \n"
+        "Каждый пятый лот уходит на нисходящем аукционе — подвалы, "
+        "нестандартные площади, плохая локация. Берут только с дисконтом."
+    )
+    st.info(
+        "**Пик продаж — 2025 год (1 065 лотов).**  \n"
+        "Процент совпадений пока наименьший (5%) — "
+        "многие арендаторы ещё не появились в 2GIS или не накопилось данных."
+    )
+    st.info(
+        "**8.1% матча — нижняя оценка.**  \n"
+        "Ограничения: пробел в снимках 2GIS ~4 года (2021–2025), нет кадастрового номера, "
+        "матч по адресу. Компании без онлайн-присутствия (ИП, склады) не видны в справочнике."
+    )
