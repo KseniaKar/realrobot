@@ -476,19 +476,6 @@ _pct_min = _by_year["% матча"].min()
 _best_year = df.groupby("год_торгов").size().idxmax()
 _best_year_n = df.groupby("год_торгов").size().max()
 
-# Метрики — строка 1: общая картина
-mc1, mc2, mc3, mc4 = st.columns(4)
-mc1.metric("Лотов продано (2022–2026)", f"{_total:,}".replace(",", " "))
-mc2.metric("Выручка города", f"≈ {_revenue_bln:.0f} млрд ₽")
-mc3.metric("Медиана цены продажи", f"{_median_price:.1f} млн ₽")
-mc4.metric("Доля с превышением цены", f"{_excess_pct:.0f}%")
-
-# Метрики — строка 2: матчинг и интересные факты
-mc1, mc2, mc3 = st.columns(3)
-mc1.metric("Лотов с установленным арендатором", f"{_n} ({_n/_total*100:.0f}%)")
-mc2.metric("Маркетплейсы WB + Ozon", f"{_wb_ozon} из {_n} лотов")
-mc3.metric("Пик продаж", f"{_best_year} — {_best_year_n} лотов")
-
 # Графики
 st.markdown("**Топ компаний-арендаторов**")
 _companies = _matched["likely_company"].fillna("").str.split("|").str[0].str.strip()
