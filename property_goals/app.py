@@ -524,7 +524,7 @@ with ki2:
     st.info(
         f"**Пик продаж — {_best_year} год ({_best_year_n} лотов).**  \n"
         f"Процент совпадений минимален в {_year_min_match} году ({_pct_min}%) — "
-        "многие арендаторы ещё не появились в 2GIS или не накопилось данных."
+        "для этих лотов в 2GIS меньше подходящих срезов."
     )
     st.info(
         f"**{_n/_total*100:.0f}% матча — нижняя оценка.**  \n"
@@ -538,16 +538,6 @@ da1 = st.container()
 
 with da1:
     st.markdown("**Матчи по году продажи**")
-    fig, ax = plt.subplots(figsize=(5, 3))
-    x = range(len(_by_year_indexed))
-    ax.bar([i - 0.2 for i in x], _by_year_indexed["всего"], width=0.4, label="всего")
-    ax.bar([i + 0.2 for i in x], _by_year_indexed["с матчем"], width=0.4, label="с матчем")
-    ax.set_xticks(list(x))
-    ax.set_xticklabels(_by_year_indexed.index, rotation=45)
-    ax.legend()
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
     st.dataframe(
         _by_year.rename(columns={"год_торгов": "Год"}).set_index("Год"),
         use_container_width=True,
