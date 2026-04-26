@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import csv
 import math
+import re
 from calendar import monthrange
 from collections import Counter
 from datetime import date, datetime
@@ -67,6 +68,12 @@ IMPLAUSIBLE_NAME_SUBSTRINGS = [
     "приема батареек",
     "приёма батареек",
 ]
+
+# Names that look like street addresses (e.g. "Романов переулок, 7")
+_ADDRESS_LIKE_RE = re.compile(
+    r"\b(улица|переулок|проспект|бульвар|шоссе|набережная|площадь|проезд|тупик)\b.{0,30}\d",
+    re.IGNORECASE,
+)
 
 CONF_RANK = {"high": 0, "medium": 1, "low": 2, "": 9}
 
@@ -129,7 +136,9 @@ def is_implausible(u: str) -> bool:
 
 def is_implausible_name(name: str) -> bool:
     lower = name.lower()
-    return any(s.lower() in lower for s in IMPLAUSIBLE_NAME_SUBSTRINGS)
+    if any(s.lower() in lower for s in IMPLAUSIBLE_NAME_SUBSTRINGS):
+        return True
+    return bool(_ADDRESS_LIKE_RE.search(name))
 
 
 def confidence_for(candidates: list[dict]) -> str:
@@ -329,8 +338,6 @@ def main() -> None:
             addr_norm = addr_norm_by_lot[lot_id]
             if shared[(addr_norm, best_mid)] > 1:
                 conf = "low"
-            if conf == "high" and cands[0]["after_days"] > 365:
-                conf = "medium"
 
             companies = [c["org"].get("name", "") for c in cands]
             usages    = [usage_str(c["org"]) for c in cands]

@@ -434,33 +434,62 @@ st.dataframe(
     },
 )
 
-# ── Инсайты ────────────────────────────────────────────────────────────────
+# ── Инсайты ────────────────────────────────────────────────────────────────────────────────
 st.divider()
 st.subheader("Инсайты и выводы")
 
-_matched = df[df["match_confidence"].fillna("").str.strip().ne("")]
+_matched = df[df["match_confidence"].fillna("").str.strip() != ""]
 _n = len(_matched)
 _total = len(df)
 _revenue_bln = df["итоговая_цена_млн"].sum() / 1000
 _median_price = df["итоговая_цена_млн"].median()
 _excess_valid = df[df["начальная_цена_руб"] > 0]["превышение_цены_%"].dropna()
+_excess_pct = (_excess_valid > 0).mean() * 100
+_excess_pos = _excess_valid[_excess_valid > 0]
+_excess_med = _excess_pos.median() if len(_excess_pos) > 0 else 0
+_excess_max = _excess_valid.max() if len(_excess_valid) > 0 else 0
 _wb_ozon = _matched["likely_company"].fillna("").str.contains("Wildberries|Ozon", case=False).sum()
+
+_beauty_cats = ["Красота", "Медицина", "Стоматолог", "Барбер"]
+_beauty_n = _matched["likely_usage"].fillna("").apply(
+    lambda u: any(c.lower() in u.lower() for c in _beauty_cats)
+).sum()
+
+_public_share = (
+    df["форма_проведения"].fillna("").str.contains("публичн", case=False).mean() * 100
+    if "форма_проведения" in df.columns else 0
+)
+
+_by_year = (
+    df.groupby("год_торгов")
+    .apply(lambda g: pd.Series({
+        "всего": len(g),
+        "с матчем": (g["match_confidence"].fillna("").str.strip() != "").sum(),
+    }))
+    .reset_index()
+)
+_by_year["% матча"] = (_by_year["с матчем"] / _by_year["всего"] * 100).round(0).astype(int)
+_by_year_indexed = _by_year.set_index("год_торгов")
+_year_min_match = _by_year.loc[_by_year["% матча"].idxmin(), "год_торгов"]
+_pct_min = _by_year["% матча"].min()
+
+_best_year = df.groupby("год_торгов").size().idxmax()
+_best_year_n = df.groupby("год_торгов").size().max()
+_days_med = pd.to_numeric(_matched.get("match_after_days", pd.Series(dtype=float)), errors="coerce").median()
 
 # Метрики — строка 1: общая картина
 mc1, mc2, mc3, mc4 = st.columns(4)
-mc1.metric("Лотов продано (2022–2026)", f"{_total:,}".replace(",", " "))
+mc1.metric("Лотов продано (2022–2026)", f"{_total:,}".replace(",", " "))
 mc2.metric("Выручка города", f"≈ {_revenue_bln:.0f} млрд ₽")
 mc3.metric("Медиана цены продажи", f"{_median_price:.1f} млн ₽")
-mc4.metric("Доля с превышением цены", f"{(_excess_valid > 0).mean()*100:.0f}%")
+mc4.metric("Доля с превышением цены", f"{_excess_pct:.0f}%")
 
 # Метрики — строка 2: матчинг и интересные факты
 mc1, mc2, mc3, mc4 = st.columns(4)
-_best_year = df.groupby("год_торгов").size().idxmax()
-_best_year_n = df.groupby("год_торгов").size().max()
 mc1.metric("Лотов с установленным арендатором", f"{_n} ({_n/_total*100:.0f}%)")
 mc2.metric("Маркетплейсы WB + Ozon", f"{_wb_ozon} из {_n} лотов")
 mc3.metric("Пик продаж", f"{_best_year} — {_best_year_n} лотов")
-mc4.metric("Макс. превышение стартовой цены", f"+{_excess_valid.max():.0f}%")
+mc4.metric("Медиана дней до матча", f"{int(_days_med) if not pd.isna(_days_med) else '—'}")
 
 # Графики
 gc1, gc2 = st.columns(2)
@@ -482,7 +511,7 @@ with gc1:
 with gc2:
     st.markdown("**Топ компаний-арендаторов**")
     _companies = _matched["likely_company"].fillna("").str.split("|").str[0].str.strip()
-    _companies = _companies[_companies.ne("")]
+    _companies = _companies[_companies != ""]
     _companies = (
         _companies
         .str.replace(r"Wildberries,.*", "Wildberries (ПВЗ)", regex=True)
@@ -504,30 +533,32 @@ with gc2:
 st.markdown("#### Ключевые выводы")
 ki1, ki2 = st.columns(2)
 with ki1:
+    _wb_ratio = round(_n / _wb_ozon) if _wb_ozon > 0 else 0
     st.info(
         "**Маркетплейсы — главный тренд.**  \n"
-        "Каждый пятый установленный арендатор — пункт выдачи Wildberries или Ozon. "
+        f"Каждый {_wb_ratio}-й установленный арендатор — "
+        "пункт выдачи Wildberries или Ozon. "
         "Городские помещения массово перепрофилируются под логистику последней мили."
     )
     st.info(
         "**Красота и сервис — второй кластер.**  \n"
-        "Барбершопы, ногтевые студии, стоматологии суммарно ~52 лота. "
+        f"Барбершопы, ногтевые студии, стоматологии — суммарно {_beauty_n} лотов. "
         "Типичный профиль: 50–100 м², 1 этаж, жилой район."
     )
     st.info(
         "**Аукцион реально конкурентный.**  \n"
-        "55% лотов уходят дороже старта, медиана +7.5%. "
-        "Рекорд — превышение +1 250% (×13 от стартовой цены)."
+        f"{_excess_pct:.0f}% лотов уходят дороже старта, медиана +{_excess_med:.1f}%. "
+        f"Рекорд — превышение +{_excess_max:.0f}%."
     )
 with ki2:
     st.info(
         "**Публичное предложение — индикатор неликвида.**  \n"
-        "Каждый пятый лот уходит на нисходящем аукционе — подвалы, "
+        f"{_public_share:.0f}% лотов уходят на нисходящем аукционе — подвалы, "
         "нестандартные площади, плохая локация. Берут только с дисконтом."
     )
     st.info(
-        "**Пик продаж — 2025 год (1 065 лотов).**  \n"
-        "Процент совпадений пока наименьший (5%) — "
+        f"**Пик продаж — {_best_year} год ({_best_year_n} лотов).**  \n"
+        f"Процент совпадений минимален в {_year_min_match} году ({_pct_min}%) — "
         "многие арендаторы ещё не появились в 2GIS или не накопилось данных."
     )
     st.info(
@@ -542,34 +573,28 @@ da1, da2 = st.columns(2)
 
 with da1:
     st.markdown("**Матчи по году продажи**")
-    _by_year = (
-        df.groupby("год_торгов")
-        .apply(lambda g: pd.Series({
-            "всего": len(g),
-            "с матчем": g["match_confidence"].fillna("").str.strip().ne("").sum(),
-        }))
-        .reset_index()
-    )
-    _by_year["% матча"] = (_by_year["с матчем"] / _by_year["всего"] * 100).round(0).astype(int)
-    _by_year = _by_year.set_index("год_торгов")
     fig, ax = plt.subplots(figsize=(5, 3))
-    x = range(len(_by_year))
-    ax.bar([i - 0.2 for i in x], _by_year["всего"], width=0.4, label="всего")
-    ax.bar([i + 0.2 for i in x], _by_year["с матчем"], width=0.4, label="с матчем")
+    x = range(len(_by_year_indexed))
+    ax.bar([i - 0.2 for i in x], _by_year_indexed["всего"], width=0.4, label="всего")
+    ax.bar([i + 0.2 for i in x], _by_year_indexed["с матчем"], width=0.4, label="с матчем")
     ax.set_xticks(list(x))
-    ax.set_xticklabels(_by_year.index, rotation=45)
+    ax.set_xticklabels(_by_year_indexed.index, rotation=45)
     ax.legend()
     plt.tight_layout()
     st.pyplot(fig)
     plt.close(fig)
+    st.dataframe(
+        _by_year.rename(columns={"год_торгов": "Год"}).set_index("Год"),
+        use_container_width=True,
+    )
 
 with da2:
-    st.markdown("**Источник данных о матче**")
+    st.markdown("**Источник данных о матче (2022–2026)**")
     def _source_label(tw: str) -> str:
         if not tw:
             return ""
         if tw.startswith("gap_snapshot_"):
-            return "Промежуточные снэпшоты\n(2022–2024)"
+            return "Промежуточные снэпшоты\n(2022–2026)"
         if tw.startswith("first_after_snapshot_"):
             return "Снэпшот 2025-09\n(4-летнее окно)"
         if tw == "180-365d":
@@ -587,3 +612,4 @@ with da2:
     plt.tight_layout()
     st.pyplot(fig)
     plt.close(fig)
+
