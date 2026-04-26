@@ -31,6 +31,13 @@ IMPLAUSIBLE_SUBSTRINGS = [
     "Общественные / политические организации",
 ]
 
+IMPLAUSIBLE_NAME_SUBSTRINGS = [
+    "контейнер для сбора",
+    "пункт сбора отработанных",
+    "приема батареек",
+    "приёма батареек",
+]
+
 
 def parse_lot_date(value: str) -> date | None:
     value = (value or "").strip()
@@ -102,6 +109,11 @@ def usage(row: dict[str, str]) -> str:
 
 def is_implausible(usage_str: str) -> bool:
     return any(sub in usage_str for sub in IMPLAUSIBLE_SUBSTRINGS)
+
+
+def is_implausible_name(name: str) -> bool:
+    lower = name.lower()
+    return any(sub.lower() in lower for sub in IMPLAUSIBLE_NAME_SUBSTRINGS)
 
 
 def load_recent_lots() -> list[dict[str, str]]:
@@ -185,7 +197,7 @@ def main() -> None:
                 if distance_m > MAX_DISTANCE_M:
                     continue
                 usage_str = usage({"rubric": org.get("rubric", ""), "subrubric": org.get("subrubric", "")})
-                if is_implausible(usage_str):
+                if is_implausible(usage_str) or is_implausible_name(org.get("name", "")):
                     continue
                 out = {
                     "lot_id": lot.get("номер_лота", ""),

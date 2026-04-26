@@ -48,6 +48,14 @@ IMPLAUSIBLE_SUBSTRINGS = [
     "Общественные / политические организации",  # public orgs
 ]
 
+# Checked against candidate company NAME (not rubric), case-insensitive.
+IMPLAUSIBLE_NAME_SUBSTRINGS = [
+    "контейнер для сбора",          # eco-collection boxes (ЭкоПросто) — not tenants
+    "пункт сбора отработанных",     # waste/hazmat collection points
+    "приема батареек",              # battery collection kiosks
+    "приёма батареек",
+]
+
 # --- Usage string → retailstreets category ---
 # Match against substrings of the usage string (case-insensitive).
 # First match wins.
@@ -120,6 +128,11 @@ def is_implausible(usage: str) -> bool:
     return False
 
 
+def is_implausible_name(name: str) -> bool:
+    lower = name.lower()
+    return any(sub.lower() in lower for sub in IMPLAUSIBLE_NAME_SUBSTRINGS)
+
+
 def area_mismatch(lot_area: float | None, rs_cat: str | None, limits: dict) -> bool:
     if lot_area is None or rs_cat is None or rs_cat not in limits:
         return False
@@ -148,7 +161,7 @@ def reselect(
         c = company_list[i] if i < len(company_list) else ""
         u = usage_list[i] if i < len(usage_list) else ""
 
-        if is_implausible(u):
+        if is_implausible(u) or is_implausible_name(c):
             dropped_c.append(c)
             reasons.append(f"IMPLAUSIBLE_TYPE: {u}")
             continue

@@ -13,12 +13,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-25-revalidated-matches-v2"
+APP_BUILD = "2026-04-26-retailstreets-none-fix-v3"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
 CLEAN_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_clean.csv"
 PROTO_JSON_PATH = BASE_DIR.parent / "web-parsers" / "investmoskow_before" / "data" / "protocols" / "protocol_cache.json"
+RS_SUMMARY_PATH = BASE_DIR / "matches" / "property_retailstreets_summary.csv"
 
 OKRUG_SHORT = {
     "Центральный административный округ": "ЦАО",
@@ -183,7 +184,7 @@ def load_data() -> pd.DataFrame:
     df["radius"] = df["площадь_м²"].apply(
         lambda area: 5 if pd.isna(area) or area <= 0 else max(4, min(4 + 6 * np.log1p(area) / np.log1p(max_area), 25))
     )
-    df["участники"] = df["participants_count"].apply(lambda x: int(x) if pd.notna(x) else None)
+    df["участники"] = pd.to_numeric(df["participants_count"], errors="coerce").astype("Int64")
 
     for col in [
         "likely_company",
@@ -212,6 +213,18 @@ def load_data() -> pd.DataFrame:
         return "No match"
 
     df["match_source_label"] = df.apply(_match_source, axis=1)
+
+    if RS_SUMMARY_PATH.exists():
+        rs = pd.read_csv(RS_SUMMARY_PATH, encoding="utf-8-sig")[
+            ["номер_лота", "rs_top_category", "rs_top_chains", "rs_chains_count"]
+        ]
+        df = df.merge(rs, on="номер_лота", how="left")
+    else:
+        df["rs_top_category"] = ""
+        df["rs_top_chains"] = ""
+        df["rs_chains_count"] = pd.NA
+    df["rs_top_category"] = df["rs_top_category"].fillna("")
+    df["rs_top_chains"] = df["rs_top_chains"].fillna("")
 
     return df
 
@@ -317,6 +330,7 @@ for _, row in map_df.iterrows():
             <tr><td><b>Usage:</b></td><td>{likely_usage}</td></tr>
             <tr><td><b>Company:</b></td><td>{likely_company}</td></tr>
             <tr><td><b>Match:</b></td><td>{row['match_confidence_label']}</td></tr>
+            {f'<tr><td><b>Подходящая категория:</b></td><td>{safe_text(row["rs_top_category"])}</td></tr><tr><td><b>Подходящие сети:</b></td><td style="font-size:11px;">{safe_text(str(row["rs_top_chains"])[:120])}</td></tr>' if not likely_company and row.get("rs_top_category") else ''}
         </table>
         <br><a href="{row['url']}" target="_blank" style="color: #1a73e8;">→ Подробнее на investmoscow.ru</a>
     </div>
@@ -401,6 +415,8 @@ display_cols = [
     "match_after_days",
     "likely_company",
     "likely_usage",
+    "rs_top_category",
+    "rs_top_chains",
     "превышение_цены_%",
     "участники",
     "ссылка_на_лот",
@@ -426,6 +442,8 @@ st.dataframe(
         "match_after_days": st.column_config.NumberColumn("Days to match", format="%d"),
         "likely_company": "Likely company",
         "likely_usage": "Likely usage",
+        "rs_top_category": "Подходящая категория",
+        "rs_top_chains": st.column_config.TextColumn("Подходящие сети", width="medium"),
         "превышение_цены_%": st.column_config.NumberColumn("Превышение", format="%+.1f%%"),
         "участники": "Участники",
         "ссылка_на_лот": st.column_config.LinkColumn("Лот", width="small"),

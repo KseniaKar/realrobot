@@ -49,6 +49,13 @@ IMPLAUSIBLE_SUBSTRINGS = [
     "Общественные / политические организации",
 ]
 
+IMPLAUSIBLE_NAME_SUBSTRINGS = [
+    "контейнер для сбора",
+    "пункт сбора отработанных",
+    "приема батареек",
+    "приёма батареек",
+]
+
 USAGE_TO_RS_CATEGORY: list[tuple[str, str]] = [
     ("Пункты выдачи интернет-заказов", "Пунк выдачи"),
     ("Супермаркеты",                   "Супермаркет/Гипермаркет"),
@@ -122,6 +129,11 @@ def is_implausible(usage: str) -> bool:
         if pattern.lower() in usage.lower():
             return True
     return False
+
+
+def is_implausible_name(name: str) -> bool:
+    lower = name.lower()
+    return any(sub.lower() in lower for sub in IMPLAUSIBLE_NAME_SUBSTRINGS)
 
 
 def area_ok(lot_area: float | None, rs_cat: str | None, limits: dict) -> bool:
@@ -223,8 +235,9 @@ def main() -> None:
 
         for cand in candidates:
             usage = candidate_usage(cand)
-            if is_implausible(usage):
-                dropped_info.append(f"IMPLAUSIBLE: {cand.get('match_name','')} ({usage[:60]})")
+            name = cand.get("match_name", "")
+            if is_implausible(usage) or is_implausible_name(name):
+                dropped_info.append(f"IMPLAUSIBLE: {name} ({usage[:60]})")
                 continue
             rs_cat = usage_to_rs_category(usage)
             if not area_ok(lot_area, rs_cat, rs_limits):

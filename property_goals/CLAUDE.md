@@ -49,7 +49,9 @@ recover_lost_matches.py            → восстановление лотов 2
 **`revalidate_matches.py`**
 - Удаляет кандидатов, которые не могут быть арендаторами:
   - `IMPLAUSIBLE_SUBSTRINGS`: водоматы, постаматы, зарядки, справочные госслужбы, ЖКУ, новостройки, общественные организации
+  - `IMPLAUSIBLE_NAME_SUBSTRINGS`: eco-контейнеры ("контейнер для сбора"), пункты сбора отходов, пункты приёма батареек — проверяется по имени компании, не рубрике
   - Проверка площади: лот ↔ требования из `../retailstreets_parser/data/retailstreets_requirements.csv` (4x tolerance)
+- Обрабатывает ВСЕ matched-лоты, включая `first_after_snapshot` и recent
 - Отчёт: `matches/revalidation_report.csv`
 
 **`process_2026_04_snapshot.py`**
@@ -60,7 +62,7 @@ recover_lost_matches.py            → восстановление лотов 2
 **`match_recent_2026_04.py`**
 - Лоты, проданные не позднее 180 дней до `2026-04-30`
 - Матчит по нормализованному адресу + расстоянию ≤ 250м
-- Применяет тот же `IMPLAUSIBLE_SUBSTRINGS` фильтр
+- Применяет `IMPLAUSIBLE_SUBSTRINGS` + `IMPLAUSIBLE_NAME_SUBSTRINGS` фильтр
 - **Дедупликация зданий**: если один `match_id` является лучшим кандидатом для нескольких лотов одного здания → confidence понижается до `low` (несколько помещений в здании не могут все стать одной компанией)
 - Confidence: `high` (1 кандидат, 0-30м), `medium` (≤3 кандидата, 0-100м), `low` иначе
 - Выход: `matches/property_usage_recent_2026_04_summary.csv`
@@ -73,27 +75,21 @@ recover_lost_matches.py            → восстановление лотов 2
 **`recover_lost_matches.py`**
 - Лоты 2022–2024, не матчившиеся из-за пробела в снапшотах
 - Принимает первый доступный `after`-снапшот без ограничения `MAX_AFTER_DAYS`
-- Те же `IMPLAUSIBLE_SUBSTRINGS` + площадной фильтр
+- Те же `IMPLAUSIBLE_SUBSTRINGS` + `IMPLAUSIBLE_NAME_SUBSTRINGS` + площадной фильтр
 - `high` confidence понижается до `medium` при `after_days > 365`
 - Лейбл: `match_time_window = "first_after_snapshot_2025-09"`
 - Отчёт: `matches/recovered_matches_report.csv`
 
 ## Текущее состояние матчинга (апрель 2026)
 
-| Источник | Лотов | High | Medium | Low |
-|----------|-------|------|--------|-----|
-| Baseline `180-365d` | 58 | 13 | 44 | 1 |
-| Recent `0-180d_2026-04` | 36 | 10 | 26 | 0 |
-| First snapshot `2025-09` | 223 | 10 | 210 | 3 |
-| **Итого** | **317** | **33** | **280** | **4** |
+| Источник | Лотов |
+|----------|-------|
+| Baseline `180-365d` | ~56 |
+| Recent `0-180d_2026-04` | ~35 |
+| First snapshot `2025-09` | ~219 |
+| **Итого** | **313** |
 
-По годам:
-
-| 2022 | 2023 | 2024 | 2025 | 2026 |
-|------|------|------|------|------|
-| 71 | 68 | 104 | 56 | 18 |
-
-Из 3868 лотов матч имеют **317 (8.2%)**.
+Из 3868 лотов матч имеют **313 (8.1%)** после реvalidации с `IMPLAUSIBLE_NAME_SUBSTRINGS`.
 
 ## Ограничения данных
 
@@ -111,7 +107,14 @@ recover_lost_matches.py            → восстановление лотов 2
    py match_recent_2026_07.py
    py merge_recent_2026_07_matches.py
    ```
-3. **Retailstreets как рекомендация** — для всех 3868 лотов показывать подходящие торговые сети из `matches/property_retailstreets_summary.csv` (логика готова в `match_retailstreets.py`, интеграция в `app.py` отложена)
+
+## Retailstreets (рекомендации по сетям)
+
+Для ВСЕХ 3868 лотов рассчитаны подходящие торговые сети на основе параметров помещения (площадь, этаж).
+
+- Источник: `matches/property_retailstreets_summary.csv` — колонки `rs_top_category`, `rs_top_chains`, `rs_chains_count`
+- Генерация: `match_retailstreets.py`
+- В `app.py`: загружается в `load_data()` через merge по `номер_лота`, отображается в таблице («Подходящая категория», «Подходящие сети») и в popup карты для unmatched лотов
 
 ## Запуск приложения
 
