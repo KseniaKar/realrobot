@@ -214,6 +214,9 @@ def load_data() -> pd.DataFrame:
             return "Без совпадения"
         if tw == "0-180d_recent_2026-04":
             return "Недавние (апрель 2026, до 180 дн.)"
+        if tw.startswith("gap_snapshot_"):
+            snapshot = tw.replace("gap_snapshot_", "")
+            return f"Данные появления бизнеса за {snapshot}"
         if tw.startswith("first_after_snapshot_"):
             snapshot = tw.replace("first_after_snapshot_", "")
             return f"Данные появления бизнеса за {snapshot}"
@@ -468,7 +471,7 @@ with gc1:
     def _rubric(s):
         return s.split("->")[0].strip() if "->" in s else s
     _rubric_counts = _usage.map(_rubric).value_counts().head(8)
-    _rubric_counts = _rubric_counts[_rubric_counts.index.ne("")]
+    _rubric_counts = _rubric_counts[_rubric_counts.index != ""]
     st.bar_chart(_rubric_counts.rename("лотов"))
 
 with gc2:
@@ -517,7 +520,46 @@ with ki2:
         "многие арендаторы ещё не появились в 2GIS или не накопилось данных."
     )
     st.info(
-        "**8.1% матча — нижняя оценка.**  \n"
-        "Ограничения: пробел в снимках 2GIS ~4 года (2021–2025), нет кадастрового номера, "
+        f"**{_n/_total*100:.0f}% матча — нижняя оценка.**  \n"
+        "Ограничения: пробел в снимках 2GIS (2021–2022), нет кадастрового номера, "
         "матч по адресу. Компании без онлайн-присутствия (ИП, склады) не видны в справочнике."
     )
+
+# Дополнительная аналитика
+st.markdown("#### Детали матчинга")
+da1, da2 = st.columns(2)
+
+with da1:
+    st.markdown("**Матчи по году продажи**")
+    _by_year = (
+        df.groupby("год_торгов")
+        .apply(lambda g: pd.Series({
+            "всего": len(g),
+            "с матчем": g["match_confidence"].fillna("").str.strip().ne("").sum(),
+        }))
+        .reset_index()
+    )
+    _by_year["% матча"] = (_by_year["с матчем"] / _by_year["всего"] * 100).round(0).astype(int)
+    _by_year = _by_year.set_index("год_торгов")
+    st.bar_chart(_by_year[["с матчем", "всего"]])
+    st.caption("Синий — с матчем, оранжевый — всего продано")
+
+with da2:
+    st.markdown("**Источник данных о матче**")
+    def _source_label(tw: str) -> str:
+        if not tw:
+            return ""
+        if tw.startswith("gap_snapshot_"):
+            return "Промежуточные снэпшоты\n(2022–2024)"
+        if tw.startswith("first_after_snapshot_"):
+            return "Снэпшот 2025-09\n(4-летнее окно)"
+        if tw == "180-365d":
+            return "Baseline\n(180–365 дней)"
+        if "recent" in tw:
+            return "Недавние\n(0–180 дней)"
+        return tw
+    _tw_counts = (
+        _matched["match_time_window"].fillna("").map(_source_label)
+        .value_counts()
+    )
+    st.bar_chart(_tw_counts.rename("лотов"))
