@@ -27,10 +27,12 @@ LOTS_SRC     = BASE_DIR / "investmoscow_sold_2022_2026_clean.with_norm.csv"
 ENRICHED_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 SUMMARY_OUT  = MATCH_DIR / "gap_matches_summary.csv"
 
-MIN_AFTER_DAYS = 60    # require at least 60 days after purchase
+MIN_AFTER_DAYS = 60     # require at least 60 days after purchase
+MAX_AFTER_DAYS = 365    # cap at 1 year — beyond this use first_after_snapshot
 MAX_DISTANCE_M = 250
 
 # Snapshot pairs in chronological order: (prev_label, curr_label)
+# All gaps + recent snapshots through 2026-04, covering lots from 2022 to late 2025.
 SNAPSHOT_PAIRS = [
     ("2021-10", "2022-01"),
     ("2022-01", "2022-05"),
@@ -40,12 +42,12 @@ SNAPSHOT_PAIRS = [
     ("2023-12", "2024-05"),
     ("2024-05", "2024-09"),
     ("2024-09", "2024-10"),
-    ("2024-10", "2025-05"),
-    ("2025-05", "2025-07"),
+    ("2024-10", "2025-09"),
+    ("2025-09", "2025-11"),
+    ("2025-11", "2026-02"),
+    ("2026-02", "2026-03"),
+    ("2026-03", "2026-04"),
 ]
-
-# District-based snapshots have ID=0 for all rows; use composite key instead
-DISTRICT_LABELS = {"2024-05", "2024-09", "2024-10", "2025-05", "2025-07"}
 
 IMPLAUSIBLE_SUBSTRINGS = [
     "Станции зарядки телефонов",
@@ -206,23 +208,15 @@ def _composite_key(row: dict) -> str:
 
 
 def load_snapshot_keys(label: str) -> set[str]:
-    """Returns a set of identity keys for all orgs in the snapshot.
-
-    For district-based snapshots (ID=0), uses composite address_norm|name key.
-    For flat snapshots, uses the numeric ID.
-    """
+    """Returns composite address_norm|name keys for all orgs in the snapshot."""
     path = MOSCOW_DIR / f"{label}.with_norm.csv"
     if not path.exists():
         return set()
-    use_composite = label in DISTRICT_LABELS
     keys: set[str] = set()
     with path.open("r", encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
-            if use_composite:
-                k = _composite_key(row)
-            else:
-                k = (row.get("id") or "").strip()
-            if k:
+            k = _composite_key(row)
+            if k and k != "|":
                 keys.add(k)
     return keys
 
@@ -231,16 +225,12 @@ def load_new_orgs(curr_label: str, prev_keys: set[str]) -> dict[str, list[dict]]
     """Returns {address_norm: [org]} for organisations new in curr_label vs prev."""
     path = MOSCOW_DIR / f"{curr_label}.with_norm.csv"
     if not path.exists():
-        print(f"    WARNING: {curr_label}.with_norm.csv not found — run process_gap_snapshots.py first")
+        print(f"    WARNING: {curr_label}.with_norm.csv not found")
         return {}
-    use_composite = curr_label in DISTRICT_LABELS
     by_addr: dict[str, list[dict]] = {}
     with path.open("r", encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
-            if use_composite:
-                key = _composite_key(row)
-            else:
-                key = (row.get("id") or "").strip()
+            key = _composite_key(row)
             if key and key in prev_keys:
                 continue  # was already present in prev snapshot
             addr = (row.get("address_norm") or "").strip()
@@ -286,7 +276,7 @@ def main() -> None:
             purchase_date = lot["_purchase_date"]
             after_days   = (curr_date - purchase_date).days
 
-            if after_days < MIN_AFTER_DAYS:
+            if after_days < MIN_AFTER_DAYS or after_days > MAX_AFTER_DAYS:
                 continue
 
             addr  = (lot.get("address_norm") or "").strip()
@@ -320,7 +310,7 @@ def main() -> None:
         addr_norm_by_lot: dict[str, str] = {}
         for lot_id, cands in candidates_by_lot.items():
             cands.sort(key=lambda c: c["distance_m"])
-            best_mid_by_lot[lot_id]  = (cands[0]["org"].get("id") or "").strip()
+            best_mid_by_lot[lot_id]  = _composite_key(cands[0]["org"])
             addr_norm_by_lot[lot_id] = next(
                 (l.get("address_norm", "") for l in lots if l["_lot_id"] == lot_id), ""
             )
