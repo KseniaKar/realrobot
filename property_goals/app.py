@@ -166,6 +166,13 @@ def load_data() -> pd.DataFrame:
             errors="coerce",
         )
 
+    # Публичное предложение / Без объявления цены не имеют превышения на сайте — считаем сами
+    mask = df["превышение_цены_%"].isna() & (df["начальная_цена_руб"] > 0)
+    df.loc[mask, "превышение_цены_%"] = (
+        (df.loc[mask, "итоговая_цена_руб"] - df.loc[mask, "начальная_цена_руб"])
+        / df.loc[mask, "начальная_цена_руб"] * 100
+    ).round(1)
+
     if PROTO_JSON_PATH.exists():
         with open(PROTO_JSON_PATH, "r", encoding="utf-8") as f:
             cache = json.load(f)
