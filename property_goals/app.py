@@ -372,35 +372,6 @@ with legend_right:
         unsafe_allow_html=True,
     )
 
-st.subheader("Участники ↔ превышение")
-corr_df = filtered[
-    filtered["участники"].notna() & filtered["превышение_цены_%"].notna() & (filtered["участники"] > 0)
-].copy()
-if len(corr_df) > 1:
-    fig, ax = plt.subplots(figsize=(12, 5))
-    scatter = ax.scatter(
-        corr_df["участники"],
-        corr_df["превышение_цены_%"],
-        c=corr_df["превышение_цены_%"],
-        cmap="RdYlBu_r",
-        s=np.clip(corr_df["площадь_м²"] * 0.3, 20, 300),
-        alpha=0.7,
-        edgecolors="gray",
-        linewidth=0.3,
-    )
-    ax.set_xlabel("Количество участников")
-    ax.set_ylabel("Превышение цены, %")
-    ax.set_title(f"Зависимость превышения цены от количества участников (N={len(corr_df)})")
-    cbar = plt.colorbar(scatter, ax=ax)
-    cbar.set_label("Превышение, %")
-    st.pyplot(fig)
-    plt.close()
-
-    corr_value = corr_df[["участники", "превышение_цены_%"]].corr().iloc[0, 1]
-    st.caption(f"Корреляция (участники ↔ превышение): r = {corr_value:.3f}")
-else:
-    st.info("Недостаточно данных по участникам для расчёта корреляции.")
-
 st.subheader("Данные")
 st.caption(f"Показано {len(filtered)} из {len(df)} записей")
 
