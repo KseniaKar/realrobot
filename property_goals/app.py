@@ -288,9 +288,9 @@ filtered = df[
         if selected_match_source == "All matches"
         else (df["match_source_label"] == selected_match_source)
     )
-    & df["площадь_м²"].between(area_range[0], area_range[1])
-    & df["итоговая_цена_млн"].between(price_range[0], price_range[1])
-    & df["превышение_цены_%"].between(excess_range[0], excess_range[1])
+    & (df["площадь_м²"].between(area_range[0], area_range[1]) | df["площадь_м²"].isna())
+    & (df["итоговая_цена_млн"].between(price_range[0], price_range[1]) | df["итоговая_цена_млн"].isna())
+    & (df["превышение_цены_%"].between(excess_range[0], excess_range[1]) | df["превышение_цены_%"].isna())
 ].copy()
 
 col1, col2, col3, col4 = st.columns(4)
