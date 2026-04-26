@@ -136,6 +136,13 @@ def safe_text(value: object, fallback: str = "—") -> str:
     return clean if clean else fallback
 
 
+def fmt_date(v) -> str:
+    s = str(v).strip()
+    if not s or s in ("nan", "None", ""):
+        return "—"
+    return s[:10]
+
+
 st.set_page_config(page_title="Property Goals", layout="wide", initial_sidebar_state="expanded")
 
 
