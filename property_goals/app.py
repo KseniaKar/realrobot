@@ -475,7 +475,6 @@ _pct_min = _by_year["% матча"].min()
 
 _best_year = df.groupby("год_торгов").size().idxmax()
 _best_year_n = df.groupby("год_торгов").size().max()
-_days_med = pd.to_numeric(_matched.get("match_after_days", pd.Series(dtype=float)), errors="coerce").median()
 
 # Метрики — строка 1: общая картина
 mc1, mc2, mc3, mc4 = st.columns(4)
@@ -485,11 +484,10 @@ mc3.metric("Медиана цены продажи", f"{_median_price:.1f} мл�
 mc4.metric("Доля с превышением цены", f"{_excess_pct:.0f}%")
 
 # Метрики — строка 2: матчинг и интересные факты
-mc1, mc2, mc3, mc4 = st.columns(4)
+mc1, mc2, mc3 = st.columns(3)
 mc1.metric("Лотов с установленным арендатором", f"{_n} ({_n/_total*100:.0f}%)")
 mc2.metric("Маркетплейсы WB + Ozon", f"{_wb_ozon} из {_n} лотов")
 mc3.metric("Пик продаж", f"{_best_year} — {_best_year_n} лотов")
-mc4.metric("Медиана дней до матча", f"{int(_days_med) if not pd.isna(_days_med) else '—'}")
 
 # Графики
 gc1, gc2 = st.columns(2)
