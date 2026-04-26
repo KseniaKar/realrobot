@@ -6,6 +6,12 @@ data/protocols/*.docx
 data/protocols/protocol_results.rtf
 data/protocols/protocol_review.rtf
 
+# Большие кэш-файлы (>100 МБ, не пушатся на GitHub)
+data/all_tenders_cache_2022_2023.json
+data/all_tenders_cache_2024.json
+data/page_cache_2022_2023.json
+data/page_cache_2024.json
+
 # Python
 __pycache__/
 *.pyc

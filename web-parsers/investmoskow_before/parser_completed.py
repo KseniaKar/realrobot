@@ -26,6 +26,7 @@ DATA_DIR = "data"
 CACHE_FILE = os.path.join(DATA_DIR, "all_tenders_cache.json")
 PAGE_CACHE_FILE = os.path.join(DATA_DIR, "page_cache.json")
 PROGRESS_FILE = os.path.join(DATA_DIR, "parser_progress.json")
+PROTOCOL_CACHE_FILE = os.path.join(DATA_DIR, "protocols", "protocol_cache.json")
 CSV_FILE = os.path.join(DATA_DIR, f"investmoscow_completed_{datetime.now().strftime('%Y-%m-%d')}.csv")
 
 FIELDNAMES = [
@@ -55,6 +56,8 @@ FIELDNAMES = [
     "дата_подведения_итогов",
     "platformLink",
     "ссылка_на_протокол",
+    "источник_итоговой_цены",
+    "итоговая_цена_подтверждена",
 ]
 
 
@@ -282,12 +285,75 @@ def get_trade_form_name(trade_form_id):
     return forms.get(trade_form_id, str(trade_form_id) if trade_form_id else "")
 
 
-def calc_price_exceedance(start_price, final_price):
-    """Рассчитываем превышение цены в %"""
+EXCLUDED_EXCEEDANCE_FORMS = {
+    "Публичное предложение",
+    "Без объявления цены",
+}
+
+
+def parse_money(value):
+    try:
+        cleaned = str(value).replace('\xa0', '').replace(' ', '').replace(',', '.')
+        return float(cleaned)
+    except:
+        return None
+
+
+def normalize_final_price(final_price, trade_form=""):
+    """Для восходящих аукционов нулевая/отрицательная итоговая цена считается отсутствующей."""
+    form = str(trade_form).strip()
+    final_num = parse_money(final_price)
+    if form == "Открытый аукцион в электронной форме" and final_num is not None and final_num <= 0:
+        return ""
+    return final_price
+
+
+def load_protocol_cache():
+    if not os.path.exists(PROTOCOL_CACHE_FILE):
+        return {}
+    try:
+        with open(PROTOCOL_CACHE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def format_money_ru(value):
+    return f"{float(value):.2f}".replace(".", ",")
+
+
+def get_final_price_from_protocol(tender_id, protocol_cache):
+    item = protocol_cache.get(str(tender_id), {})
+    if not isinstance(item, dict) or item.get("error"):
+        return ""
+    winner_price_num = item.get("winner_price_num")
+    if winner_price_num in (None, ""):
+        return ""
+    try:
+        return format_money_ru(winner_price_num)
+    except Exception:
+        return ""
+
+
+def get_final_price_source(protocol_final_price, page_final_price):
+    if str(protocol_final_price).strip():
+        return "protocol"
+    if str(page_final_price).strip():
+        return "page"
+    return "missing"
+
+
+def calc_price_exceedance(start_price, final_price, trade_form=""):
+    """Рассчитываем превышение цены в % только для восходящих торгов."""
+    form = str(trade_form).strip()
+    if form in EXCLUDED_EXCEEDANCE_FORMS:
+        return ""
     try:
         start = float(str(start_price).replace(',', '.').replace(' ', ''))
         final = float(str(final_price).replace(',', '.').replace(' ', ''))
         if start > 0:
+            if form == "Открытый аукцион в электронной форме" and final < start:
+                return ""
             return f"{((final - start) / start * 100):.1f}%"
     except:
         pass
@@ -329,6 +395,7 @@ def main():
     # 3. Загружаем кэш страниц и прогресс
     page_cache = load_page_cache()
     progress = load_progress()
+    protocol_cache = load_protocol_cache()
     processed_ids = set(progress.get("processed_ids", []))
     
     print(f"[INFO] Кэш страниц: {len(page_cache)} записей")
@@ -365,6 +432,14 @@ def main():
 
         end_date = parse_date_iso(t.get("requestEndDate"))
         
+        trade_form = page_data["форма_проведения"] or get_trade_form_name(t.get("tradeFormId"))
+
+        protocol_final_price = get_final_price_from_protocol(tender_id, protocol_cache)
+        page_final_price = page_data["итоговая_цена_руб"]
+        final_price_source = get_final_price_source(protocol_final_price, page_final_price)
+        final_price = protocol_final_price or page_final_price
+        final_price = normalize_final_price(final_price, trade_form)
+
         row = {
             "url": url,
             "номер_лота": str(tender_id),
@@ -378,7 +453,7 @@ def main():
             "этажность": t.get("floors", ""),
             "функциональное_назначение": "; ".join(t.get("functionalityPurposes", [])),
             "тип_входа": get_entrance_type(t.get("entranceTypeCodes", [])),
-            "форма_проведения": page_data["форма_проведения"] or get_trade_form_name(t.get("tradeFormId")),
+            "форма_проведения": trade_form,
             "год_торгов": end_date.year if end_date else "",
             "статус": "Завершено",
             "дата_начала_приёма": page_data["дата_начала_приёма"],
@@ -388,13 +463,16 @@ def main():
             "дата_подведения_итогов": page_data["дата_подведения_итогов"],
             "размер_задатка_руб": page_data["размер_задатка_руб"],
             "шаг_аукциона_руб": page_data["шаг_аукциона_руб"],
-            "итоговая_цена_руб": page_data["итоговая_цена_руб"],
+            "итоговая_цена_руб": final_price,
             "превышение_цены_%": calc_price_exceedance(
                 t.get("startPrice", ""), 
-                page_data["итоговая_цена_руб"]
+                final_price,
+                trade_form,
             ),
             "platformLink": t.get("platformLink", ""),
             "ссылка_на_протокол": page_data["ссылка_на_протокол"],
+            "источник_итоговой_цены": final_price_source,
+            "итоговая_цена_подтверждена": "true" if final_price_source == "protocol" else "false",
         }
 
         results.append(row)

@@ -20,6 +20,10 @@ plt.rcParams['figure.figsize'] = (12, 6)
 CSV_PATH = Path('data/investmoscow_completed_2026-04-04.csv')
 CHARTS_DIR = Path('data/charts')
 CHARTS_DIR.mkdir(exist_ok=True)
+EXCLUDED_EXCEEDANCE_FORMS = {
+    'Публичное предложение',
+    'Без объявления цены',
+}
 
 df = pd.read_csv(CSV_PATH, encoding='utf-8-sig')
 print(f'Загружено: {len(df)} записей')
@@ -45,6 +49,10 @@ df['price_per_m2'] = pd.to_numeric(df['цена_за_м²'], errors='coerce')
 df['area'] = pd.to_numeric(df['площадь_м²'], errors='coerce')
 df['floors'] = pd.to_numeric(df['этажность'], errors='coerce')
 df['exceedance'] = df['превышение_цены_%'].apply(lambda x: clean_num(str(x).replace('%', '')) if pd.notna(x) and x != '' else np.nan)
+df.loc[df['форма_проведения'].isin(EXCLUDED_EXCEEDANCE_FORMS), 'exceedance'] = np.nan
+auction_mask = df['форма_проведения'].eq('Открытый аукцион в электронной форме')
+df.loc[auction_mask & (df['final_price'] <= 0), 'final_price'] = np.nan
+df.loc[auction_mask & (df['exceedance'] < 0), 'exceedance'] = np.nan
 df['year'] = pd.to_numeric(df['год_торгов'], errors='coerce').astype('Int64')
 df['request_end'] = pd.to_datetime(df['дата_окончания_приёма'], format='%d.%m.%Y %H:%M:%S', errors='coerce')
 df['month'] = df['request_end'].dt.to_period('M')
