@@ -216,7 +216,7 @@ def load_data() -> pd.DataFrame:
             return "Недавние (апрель 2026, до 180 дн.)"
         if tw.startswith("first_after_snapshot_"):
             snapshot = tw.replace("first_after_snapshot_", "")
-            return f"Первый снимок {snapshot} (лоты 2022-2024)"
+            return f"Данные появления бизнеса за {snapshot}"
         return "Базовые (180-365 дней после покупки)"
 
     df["match_source_label"] = df.apply(_match_source, axis=1)
