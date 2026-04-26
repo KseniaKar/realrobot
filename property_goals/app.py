@@ -125,7 +125,7 @@ def get_color(excess: float) -> str:
 def format_match_confidence(value: object) -> str:
     if not isinstance(value, str) or not value.strip():
         return "Нет"
-    mapping = {"high": "High", "medium": "Medium", "low": "Low", "none": "Нет"}
+    mapping = {"high": "Высокое", "medium": "Среднее", "low": "Низкое", "none": "Нет"}
     return mapping.get(value.strip().lower(), value)
 
 
@@ -211,13 +211,13 @@ def load_data() -> pd.DataFrame:
         tw = str(row.get("match_time_window") or "")
         conf = str(row.get("match_confidence") or "").strip()
         if not conf:
-            return "No match"
+            return "Без совпадения"
         if tw == "0-180d_recent_2026-04":
-            return "April 2026 recent"
+            return "Недавние (апрель 2026, до 180 дн.)"
         if tw.startswith("first_after_snapshot_"):
             snapshot = tw.replace("first_after_snapshot_", "")
-            return f"First snapshot {snapshot}"
-        return "Baseline 180-365d"
+            return f"Первый снимок {snapshot} (лоты 2022-2024)"
+        return "Базовые (180-365 дней после покупки)"
 
     df["match_source_label"] = df.apply(_match_source, axis=1)
 
@@ -244,10 +244,10 @@ st.caption(f"Build: {APP_BUILD}")
 
 all_forms = sorted(df["форма_проведения"].dropna().unique())
 selected_form = st.selectbox("Форма проведения", ["Все"] + all_forms, index=0)
-all_match_conf = [item for item in ["High", "Medium", "Low", "Нет"] if item in set(df["match_confidence_label"].dropna().unique())]
-selected_match_conf = st.selectbox("Usage match", ["Все"] + all_match_conf, index=0)
-all_match_sources = sorted(s for s in df["match_source_label"].dropna().unique() if s != "No match")
-selected_match_source = st.selectbox("Match source", ["All matches"] + all_match_sources + ["No match"], index=0)
+all_match_conf = [item for item in ["Высокое", "Среднее", "Низкое", "Нет"] if item in set(df["match_confidence_label"].dropna().unique())]
+selected_match_conf = st.selectbox("Качество совпадения", ["Все"] + all_match_conf, index=0)
+all_match_sources = sorted(s for s in df["match_source_label"].dropna().unique() if s != "Без совпадения")
+selected_match_source = st.selectbox("Источник совпадения", ["Все совпавшие"] + all_match_sources + ["Без совпадения"], index=0)
 
 st.sidebar.title("Фильтры")
 
@@ -291,8 +291,8 @@ filtered = df[
     & df["этаж_норм"].isin(selected_floors)
     & ((df["match_confidence_label"] == selected_match_conf) if selected_match_conf != "Все" else True)
     & (
-        df["match_source_label"].ne("No match")
-        if selected_match_source == "All matches"
+        df["match_source_label"].ne("Без совпадения")
+        if selected_match_source == "Все совпавшие"
         else (df["match_source_label"] == selected_match_source)
     )
     & (df["площадь_м²"].between(area_range[0], area_range[1]) | df["площадь_м²"].isna())
@@ -305,15 +305,15 @@ col1.metric("Купленных лотов", len(filtered))
 col2.metric("Ср. превышение", f"{filtered['превышение_цены_%'].mean():+.1f}%")
 col3.metric("Ср. итоговая цена", f"{filtered['итоговая_цена_млн'].mean():.1f} млн ₽")
 matched_count = int(filtered["likely_company"].fillna("").astype(str).str.strip().ne("").sum())
-col4.metric("Usage matched", matched_count)
+col4.metric("Совпало с арендатором", matched_count)
 
-show_all_map = st.checkbox("Показать все лоты на карте (включая без usage match)", value=False)
+show_all_map = st.checkbox("Показать все лоты на карте (включая без совпадения)", value=False)
 if show_all_map:
     map_df = filtered.copy()
     st.caption(f"На карте: {len(map_df)} лотов (все в текущем фильтре).")
 else:
     map_df = filtered[filtered["match_confidence"].fillna("").astype(str).str.strip().ne("")].copy()
-    st.caption(f"На карте лоты с Usage match: {len(map_df)} из {len(filtered)}. Включите галочку выше для всех лотов.")
+    st.caption(f"На карте лоты с совпадением: {len(map_df)} из {len(filtered)}. Включите галочку выше для всех лотов.")
 
 center_lat = map_df["latitude"].mean() if len(map_df) else 55.7558
 center_lon = map_df["longitude"].mean() if len(map_df) else 37.6173
@@ -415,11 +415,11 @@ st.dataframe(
     height=420,
     hide_index=True,
     column_config={
-        "match_source_label": "Match source",
-        "match_confidence_label": "Usage match",
-        "match_after_days": st.column_config.NumberColumn("Days to match", format="%d"),
-        "likely_company": "Likely company",
-        "likely_usage": "Likely usage",
+        "match_source_label": "Источник",
+        "match_confidence_label": "Совпадение",
+        "match_after_days": st.column_config.NumberColumn("Дней до матча", format="%d"),
+        "likely_company": "Арендатор",
+        "likely_usage": "Категория",
         "rs_top_category": "Подходящая категория",
         "rs_top_chains": st.column_config.TextColumn("Подходящие сети", width="medium"),
         "превышение_цены_%": st.column_config.NumberColumn("Превышение", format="%+.1f%%"),
