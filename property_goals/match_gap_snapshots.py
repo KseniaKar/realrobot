@@ -28,7 +28,7 @@ LOTS_SRC     = BASE_DIR / "investmoscow_sold_2022_2026_clean.with_norm.csv"
 ENRICHED_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 SUMMARY_OUT  = MATCH_DIR / "gap_matches_summary.csv"
 
-MIN_AFTER_DAYS = 60     # require at least 60 days after purchase
+MIN_AFTER_DAYS = 0      # no minimum — match even if opened right after purchase
 MAX_AFTER_DAYS = 365    # cap at 1 year — beyond this use first_after_snapshot
 MAX_DISTANCE_M = 250
 
