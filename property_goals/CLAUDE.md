@@ -52,6 +52,7 @@ recover_lost_matches.py            → восстановление лотов 2
   - `IMPLAUSIBLE_NAME_SUBSTRINGS`: eco-контейнеры ("контейнер для сбора"), пункты сбора отходов, пункты приёма батареек — проверяется по имени компании, не рубрике
   - Проверка площади: лот ↔ требования из `../retailstreets_parser/data/retailstreets_requirements.csv` (4x tolerance)
 - Обрабатывает ВСЕ matched-лоты, включая `first_after_snapshot` и recent
+- При полной очистке лота — обнуляет также `match_time_window` и `match_after_days` (иначе ghost-строки попадают в UI)
 - Отчёт: `matches/revalidation_report.csv`
 
 **`process_2026_04_snapshot.py`**
