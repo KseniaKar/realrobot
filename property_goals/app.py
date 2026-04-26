@@ -249,8 +249,7 @@ all_forms = sorted(df["форма_проведения"].dropna().unique())
 selected_form = st.selectbox("Форма проведения", ["Все"] + all_forms, index=0)
 all_match_conf = [item for item in ["Высокое", "Среднее", "Низкое", "Нет"] if item in set(df["match_confidence_label"].dropna().unique())]
 selected_match_conf = st.selectbox("Качество совпадения", ["Все"] + all_match_conf, index=0)
-all_match_sources = sorted(s for s in df["match_source_label"].dropna().unique() if s != "Без совпадения")
-selected_match_source = st.selectbox("Источник совпадения", ["Все совпавшие"] + all_match_sources + ["Без совпадения"], index=0)
+selected_match = st.selectbox("Арендатор найден", ["Все", "Да", "Нет"], index=0)
 
 st.sidebar.title("Фильтры")
 
@@ -294,9 +293,9 @@ filtered = df[
     & df["этаж_норм"].isin(selected_floors)
     & ((df["match_confidence_label"] == selected_match_conf) if selected_match_conf != "Все" else True)
     & (
-        df["match_source_label"].ne("Без совпадения")
-        if selected_match_source == "Все совпавшие"
-        else (df["match_source_label"] == selected_match_source)
+        True if selected_match == "Все"
+        else (df["match_confidence"].fillna("").str.strip() != "") if selected_match == "Да"
+        else (df["match_confidence"].fillna("").str.strip() == "")
     )
     & (df["площадь_м²"].between(area_range[0], area_range[1]) | df["площадь_м²"].isna())
     & (df["итоговая_цена_млн"].between(price_range[0], price_range[1]) | df["итоговая_цена_млн"].isna())
@@ -391,7 +390,6 @@ st.download_button("Скачать CSV", data=csv_data, file_name="property_goal
 display_df = filtered.copy()
 display_df["ссылка_на_лот"] = display_df["url"].fillna("")
 display_cols = [
-    "match_source_label",
     "match_confidence_label",
     "match_after_days",
     "likely_company",
@@ -418,7 +416,6 @@ st.dataframe(
     height=420,
     hide_index=True,
     column_config={
-        "match_source_label": "Источник",
         "match_confidence_label": "Совпадение",
         "match_after_days": st.column_config.NumberColumn("Дней до матча", format="%d"),
         "likely_company": "Арендатор",
