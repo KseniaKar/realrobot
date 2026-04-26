@@ -472,7 +472,12 @@ with gc1:
         return s.split("->")[0].strip() if "->" in s else s
     _rubric_counts = _usage.map(_rubric).value_counts().head(8)
     _rubric_counts = _rubric_counts[_rubric_counts.index != ""]
-    st.bar_chart(_rubric_counts.rename("лотов"))
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.barh(_rubric_counts.index[::-1], _rubric_counts.values[::-1])
+    ax.set_xlabel("лотов")
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
 
 with gc2:
     st.markdown("**Топ компаний-арендаторов**")
@@ -487,7 +492,13 @@ with gc2:
         .str.replace(r"Барберхаус,.*", "Барберхаус", regex=True)
         .str.replace(r"Винлаб,.*", "Винлаб", regex=True)
     )
-    st.bar_chart(_companies.value_counts().head(10).rename("лотов"))
+    _co_counts = _companies.value_counts().head(10)
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.barh(_co_counts.index[::-1], _co_counts.values[::-1])
+    ax.set_xlabel("лотов")
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
 
 # Текстовые выводы
 st.markdown("#### Ключевые выводы")
@@ -541,8 +552,16 @@ with da1:
     )
     _by_year["% матча"] = (_by_year["с матчем"] / _by_year["всего"] * 100).round(0).astype(int)
     _by_year = _by_year.set_index("год_торгов")
-    st.bar_chart(_by_year[["с матчем", "всего"]])
-    st.caption("Синий — с матчем, оранжевый — всего продано")
+    fig, ax = plt.subplots(figsize=(5, 3))
+    x = range(len(_by_year))
+    ax.bar([i - 0.2 for i in x], _by_year["всего"], width=0.4, label="всего")
+    ax.bar([i + 0.2 for i in x], _by_year["с матчем"], width=0.4, label="с матчем")
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(_by_year.index, rotation=45)
+    ax.legend()
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
 
 with da2:
     st.markdown("**Источник данных о матче**")
@@ -562,4 +581,9 @@ with da2:
         _matched["match_time_window"].fillna("").map(_source_label)
         .value_counts()
     )
-    st.bar_chart(_tw_counts.rename("лотов"))
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.barh(_tw_counts.index[::-1], _tw_counts.values[::-1])
+    ax.set_xlabel("лотов")
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
