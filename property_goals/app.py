@@ -324,6 +324,24 @@ map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=10, tiles="Ca
 for _, row in map_df.iterrows():
     likely_company = safe_text(row["likely_company"])
     likely_usage = safe_text(row["likely_usage"])
+    # Build match timing rows
+    _sale_date = fmt_date(row.get("дата_подведения_итогов", ""))
+    _after_days = row.get("match_after_days")
+    if pd.notna(_after_days) and likely_company and likely_company != "—":
+        _days_int = int(_after_days)
+        _months = _days_int // 30
+        if _months >= 2:
+            _timing = f"{_days_int} дн. (~{_months} мес.)"
+        else:
+            _timing = f"{_days_int} дн."
+        _match_timing_rows = f"""
+            <tr><td><b>Дата торгов:</b></td><td>{_sale_date}</td></tr>
+            <tr><td><b>Бизнес найден через:</b></td><td>{_timing}</td></tr>"""
+    elif _sale_date != "—":
+        _match_timing_rows = f"""
+            <tr><td><b>Дата торгов:</b></td><td>{_sale_date}</td></tr>"""
+    else:
+        _match_timing_rows = ""
     popup_html = f"""
     <div style="font-family: Arial, sans-serif; min-width: 340px;">
         <h4 style="margin: 0 0 8px; color: #333;">Лот #{row['номер_лота']}</h4>
@@ -335,10 +353,10 @@ for _, row in map_df.iterrows():
             <tr><td><b>Превышение:</b></td><td>{row['превышение_цены_%']:+.1f}%</td></tr>
             <tr><td><b>Участники:</b></td><td>{row['участники'] if pd.notna(row['участники']) else '—'}</td></tr>
             <tr><td><b>Округ:</b></td><td>{row['округ_код']}</td></tr>
-            <tr><td><b>Этаж:</b></td><td>{row['этаж_норм']}</td></tr>
-            <tr><td><b>Usage:</b></td><td>{likely_usage}</td></tr>
-            <tr><td><b>Company:</b></td><td>{likely_company}</td></tr>
-            <tr><td><b>Match:</b></td><td>{row['match_confidence_label']}</td></tr>
+            <tr><td><b>Этаж:</b></td><td>{row['этаж_норм']}</td></tr>{_match_timing_rows}
+            <tr><td><b>Арендатор:</b></td><td>{likely_company}</td></tr>
+            <tr><td><b>Категория:</b></td><td>{likely_usage}</td></tr>
+            <tr><td><b>Качество матча:</b></td><td>{row['match_confidence_label']}</td></tr>
             {f'<tr><td><b>Подходящая категория:</b></td><td>{safe_text(row["rs_top_category"])}</td></tr><tr><td><b>Подходящие сети:</b></td><td style="font-size:11px;">{safe_text(str(row["rs_top_chains"])[:120])}</td></tr>' if not likely_company and row.get("rs_top_category") else ''}
         </table>
         <br><a href="{row['url']}" target="_blank" style="color: #1a73e8;">→ Подробнее на investmoscow.ru</a>
