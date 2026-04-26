@@ -490,42 +490,25 @@ mc2.metric("Маркетплейсы WB + Ozon", f"{_wb_ozon} из {_n} лото
 mc3.metric("Пик продаж", f"{_best_year} — {_best_year_n} лотов")
 
 # Графики
-gc1, gc2 = st.columns(2)
-
-with gc1:
-    st.markdown("**Топ категорий арендаторов**")
-    _usage = _matched["likely_usage"].fillna("").str.split("|").str[0].str.strip()
-    def _rubric(s):
-        return s.split("->")[0].strip() if "->" in s else s
-    _rubric_counts = _usage.map(_rubric).value_counts().head(8)
-    _rubric_counts = _rubric_counts[_rubric_counts.index != ""]
-    fig, ax = plt.subplots(figsize=(5, 3))
-    ax.barh(_rubric_counts.index[::-1], _rubric_counts.values[::-1])
-    ax.set_xlabel("лотов")
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
-
-with gc2:
-    st.markdown("**Топ компаний-арендаторов**")
-    _companies = _matched["likely_company"].fillna("").str.split("|").str[0].str.strip()
-    _companies = _companies[_companies != ""]
-    _companies = (
-        _companies
-        .str.replace(r"Wildberries,.*", "Wildberries (ПВЗ)", regex=True)
-        .str.replace(r"Магнит,.*", "Магнит", regex=True)
-        .str.replace(r"Красное&Белое,.*", "Красное&Белое", regex=True)
-        .str.replace(r"Яндекс Маркет,.*", "Яндекс Маркет (ПВЗ)", regex=True)
-        .str.replace(r"Барберхаус,.*", "Барберхаус", regex=True)
-        .str.replace(r"Винлаб,.*", "Винлаб", regex=True)
-    )
-    _co_counts = _companies.value_counts().head(10)
-    fig, ax = plt.subplots(figsize=(5, 3))
-    ax.barh(_co_counts.index[::-1], _co_counts.values[::-1])
-    ax.set_xlabel("лотов")
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
+st.markdown("**Топ компаний-арендаторов**")
+_companies = _matched["likely_company"].fillna("").str.split("|").str[0].str.strip()
+_companies = _companies[_companies != ""]
+_companies = (
+    _companies
+    .str.replace(r"Wildberries,.*", "Wildberries (ПВЗ)", regex=True)
+    .str.replace(r"Магнит,.*", "Магнит", regex=True)
+    .str.replace(r"Красное&Белое,.*", "Красное&Белое", regex=True)
+    .str.replace(r"Яндекс Маркет,.*", "Яндекс Маркет (ПВЗ)", regex=True)
+    .str.replace(r"Барберхаус,.*", "Барберхаус", regex=True)
+    .str.replace(r"Винлаб,.*", "Винлаб", regex=True)
+)
+_co_counts = _companies.value_counts().head(10)
+fig, ax = plt.subplots(figsize=(8, 3))
+ax.barh(_co_counts.index[::-1], _co_counts.values[::-1])
+ax.set_xlabel("лотов")
+plt.tight_layout()
+st.pyplot(fig)
+plt.close(fig)
 
 # Текстовые выводы
 st.markdown("#### Ключевые выводы")
