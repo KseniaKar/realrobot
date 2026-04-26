@@ -203,14 +203,14 @@ def load_data() -> pd.DataFrame:
     def _match_source(row) -> str:
         tw = str(row.get("match_time_window") or "")
         conf = str(row.get("match_confidence") or "").strip()
+        if not conf:
+            return "No match"
         if tw == "0-180d_recent_2026-04":
             return "April 2026 recent"
         if tw.startswith("first_after_snapshot_"):
             snapshot = tw.replace("first_after_snapshot_", "")
             return f"First snapshot {snapshot}"
-        if conf:
-            return "Baseline 180-365d"
-        return "No match"
+        return "Baseline 180-365d"
 
     df["match_source_label"] = df.apply(_match_source, axis=1)
 

@@ -264,6 +264,9 @@ def main() -> None:
         row["match_confidence"] = new_confidence
         row["company_candidates_preview"] = compact(valid_c)
         row["usage_candidates_preview"] = compact(valid_u)
+        if not new_confidence:
+            row["match_time_window"] = ""
+            row["match_after_days"] = ""
 
         report_rows.append({
             "номер_лота": lot_id,
