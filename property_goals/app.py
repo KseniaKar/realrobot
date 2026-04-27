@@ -511,7 +511,138 @@ st.divider()
 st.subheader("Аналитика")
 
 _matched = df[df["match_confidence"].fillna("").str.strip() != ""]
+_n_lots  = len(_matched)
+_total   = len(df)
 
+# Unique tenants: deduplicate by (company, address)
+_co_df = _matched[["likely_company", "address_norm", "match_after_days",
+                    "площадь_м²", "этаж", "likely_usage", "форма_проведения",
+                    "итоговая_цена_руб", "начальная_цена_руб"]].copy()
+
+_CHART_ALIASES = {
+    "wildberries": "Wildberries", "вайлдберриз": "Wildberries",
+    "ozon": "Ozon", "озон": "Ozon",
+    "яндекс маркет": "Яндекс Маркет", "яндекс.маркет": "Яндекс Маркет",
+    "сдэк": "СДЭК", "cdek": "СДЭК",
+    "авито": "Авито", "магнит": "Магнит",
+    "пятёрочка": "Пятёрочка", "пятерочка": "Пятёрочка",
+    "вкусвилл": "ВкусВилл", "fix price": "Fix Price",
+    "красное&белое": "Красное&Белое", "красное & белое": "Красное&Белое",
+    "винлаб": "Винлаб", "dns": "DNS",
+    "перекрёсток": "Перекрёсток", "перекресток": "Перекрёсток",
+    "лента": "Лента",
+    "московское долголетие": "Московское долголетие",
+    "ямосковское долголетие": "Московское долголетие",
+}
+
+def _norm_chart(raw):
+    name = str(raw).split(",")[0].strip()
+    return _CHART_ALIASES.get(name.lower(), name)
+
+def _norm_cat(u):
+    cat = str(u).split("->")[0].split(",")[0].strip()
+    return "Маркетплейсы (ПВЗ)" if cat == "Грузоперевозки / Транспортные услуги" else cat
+
+_co_df["company"] = _co_df["likely_company"].fillna("").str.split("|").str[0].str.strip().apply(_norm_chart)
+_co_df["category"] = _co_df["likely_usage"].fillna("").apply(_norm_cat)
+_co_df["area"]     = pd.to_numeric(_co_df["площадь_м²"], errors="coerce")
+_co_df["days"]     = pd.to_numeric(_co_df["match_after_days"], errors="coerce")
+_co_df["floor1"]   = _co_df["этаж"].fillna("").astype(str).str.strip() == "1"
+
+# Deduplicated: one row per unique (company, address)
+_uniq = _co_df[_co_df["company"] != ""].drop_duplicates(subset=["company", "address_norm"])
+_n_unique = len(_uniq)
+
+# ── KPI row ──────────────────────────────────────────────────────────────────
+k1, k2, k3, k4 = st.columns(4)
+_days_valid  = _co_df["days"].dropna()
+_days_valid  = _days_valid[(_days_valid > 0) & (_days_valid <= 365)]
+_floor1_pct  = int(_co_df["floor1"].mean() * 100)
+_mp_n        = int((_uniq["category"] == "Маркетплейсы (ПВЗ)").sum())
+_mp_pct      = int(_mp_n / _n_unique * 100)
+
+k1.metric("Уникальных арендаторов", f"{_n_unique}",
+          f"{_n_lots} лотов (с дублями по зданию)")
+k2.metric("Маркетплейсы (ПВЗ)", f"{_mp_n} адресов", f"{_mp_pct}% от уникальных")
+k3.metric("Медиана открытия", f"{int(_days_valid.median())} дней",
+          f"{int((_days_valid < 180).mean()*100)}% за 6 мес.")
+k4.metric("1-й этаж", f"{_floor1_pct}%", "всех матчей")
+
+# ── Charts ────────────────────────────────────────────────────────────────────
+ch1, ch2 = st.columns(2)
+
+with ch1:
+    st.markdown("**Топ компаний-арендаторов** (уникальных адресов)")
+    _co_counts = _uniq["company"].value_counts().head(10)
+    fig, ax = plt.subplots(figsize=(6, 3))
+    ax.barh(_co_counts.index[::-1], _co_counts.values[::-1])
+    ax.set_xlabel("адресов")
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+
+with ch2:
+    st.markdown("**Топ категорий** (уникальных адресов)")
+    _cat_counts = _uniq["category"].value_counts().head(10)
+    fig, ax = plt.subplots(figsize=(6, 3))
+    ax.barh(_cat_counts.index[::-1], _cat_counts.values[::-1])
+    ax.set_xlabel("адресов")
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close(fig)
+
+# ── Insights ──────────────────────────────────────────────────────────────────
+st.markdown("#### Ключевые находки")
+i1, i2 = st.columns(2)
+
+_pub   = df["форма_проведения"].fillna("").str.contains("публичн", case=False)
+_start = pd.to_numeric(df["начальная_цена_руб"].astype(str).str.replace(",", "."), errors="coerce")
+_final = pd.to_numeric(df["итоговая_цена_руб"].astype(str).str.replace(",", "."), errors="coerce")
+_ratio = (_final / _start).replace([float("inf"), -float("inf")], pd.NA).dropna()
+_ratio_pub = _ratio[_pub & (_start > 0)]
+_ratio_auc = _ratio[~_pub & (_start > 0)]
+_disc = int((1 - _ratio_pub.median()) * 100)
+_prem = int((_ratio_auc.median() - 1) * 100)
+
+_beauty_n  = int((_uniq["category"] == "Красота / Здоровье").sum())
+_beauty_med_area = _uniq[_uniq["category"] == "Красота / Здоровье"]["area"].median()
+_mp_area   = _uniq[_uniq["category"] == "Маркетплейсы (ПВЗ)"]["area"].median()
+
+_pub_match_pct = int(df[_pub]["match_confidence"].fillna("").str.strip().ne("").mean() * 100)
+_auc_match_pct = int(df[~_pub]["match_confidence"].fillna("").str.strip().ne("").mean() * 100)
+
+_med_days = int(_days_valid.median())
+_fast_pct = int((_days_valid < 90).mean() * 100)
+
+with i1:
+    st.info(
+        f"**Треть помещений — пункты выдачи маркетплейсов.**  \n"
+        f"{_mp_pct}% уникальных арендаторов — Wildberries, Ozon, Яндекс Маркет. "
+        f"Типичная площадь — {int(_mp_area):.0f} м². "
+        "Городские коммерческие помещения стали инфраструктурой доставки."
+    )
+    st.info(
+        f"**Публичное предложение — дисконт для покупателя.**  \n"
+        f"Нисходящий аукцион закрывается в среднем на {_disc}% ниже стартовой цены, "
+        f"обычный аукцион — на {_prem}% выше. "
+        f"Арендатора потом находят реже: {_pub_match_pct}% vs {_auc_match_pct}% у конкурентных торгов."
+    )
+
+with i2:
+    st.info(
+        f"**Красота — второй по размеру кластер.**  \n"
+        f"{_beauty_n} уникальных адресов: барбершопы, ногтевые студии, косметологи. "
+        f"Медиана площади — {_beauty_med_area:.0f} м². "
+        "Подходят под большинство помещений 1-го этажа в жилых районах."
+    )
+    st.info(
+        f"**{_floor1_pct}% арендаторов — только первый этаж.**  \n"
+        "Верхние этажи практически не находят коммерческих арендаторов. "
+        f"Медиана открытия — {_med_days} дней после покупки, "
+        f"{_fast_pct}% открываются в первые 3 месяца."
+    )
+
+# ── Match by year ────────────────────────────────────────────────────────────
 _by_year = (
     df.groupby("год_торгов")
     .apply(lambda g: pd.Series({
@@ -521,48 +652,6 @@ _by_year = (
     .reset_index()
 )
 _by_year["% матча"] = (_by_year["с матчем"] / _by_year["всего"] * 100).round(0).astype(int)
-
-_CHART_ALIASES = {
-    "wildberries": "Wildberries",
-    "вайлдберриз": "Wildberries",
-    "ozon": "Ozon",
-    "озон": "Ozon",
-    "яндекс маркет": "Яндекс Маркет",
-    "яндекс.маркет": "Яндекс Маркет",
-    "сдэк": "СДЭК",
-    "cdek": "СДЭК",
-    "авито": "Авито",
-    "магнит": "Магнит",
-    "пятёрочка": "Пятёрочка",
-    "пятерочка": "Пятёрочка",
-    "вкусвилл": "ВкусВилл",
-    "fix price": "Fix Price",
-    "красное&белое": "Красное&Белое",
-    "красное & белое": "Красное&Белое",
-    "винлаб": "Винлаб",
-    "dns": "DNS",
-    "перекрёсток": "Перекрёсток",
-    "перекресток": "Перекрёсток",
-    "лента": "Лента",
-    "московское долголетие": "Московское долголетие",
-    "ямосковское долголетие": "Московское долголетие",
-}
-
-def _norm_chart(raw):
-    name = raw.split(",")[0].strip()
-    return _CHART_ALIASES.get(name.lower(), name)
-
-st.markdown("**Топ компаний-арендаторов**")
-_co_df = _matched[["likely_company", "address_norm"]].copy()
-_co_df["company"] = _co_df["likely_company"].fillna("").str.split("|").str[0].str.strip().apply(_norm_chart)
-_co_df = _co_df[_co_df["company"] != ""].drop_duplicates(subset=["company", "address_norm"])
-_co_counts = _co_df["company"].value_counts().head(10)
-fig, ax = plt.subplots(figsize=(8, 3))
-ax.barh(_co_counts.index[::-1], _co_counts.values[::-1])
-ax.set_xlabel("лотов")
-plt.tight_layout()
-st.pyplot(fig)
-plt.close(fig)
 
 st.markdown("**Матчи по году продажи**")
 st.dataframe(
