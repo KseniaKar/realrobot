@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-27-candidates-display-v4"
+APP_BUILD = "2026-04-27-candidates-display-v5"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -131,7 +131,7 @@ def format_match_confidence(conf: object, preview: object = None) -> str:
     if c == "medium":
         n = len([x for x in str(preview or "").split("|") if x.strip()])
         if n <= 1:
-            return "1 вариант"
+            return "Вероятный"
         return f"{n} варианта" if n in (2, 3, 4) else f"{n} вариантов"
     return "Нет"
 
@@ -277,7 +277,7 @@ st.sidebar.title("Фильтры")
 all_years = sorted(df["год_торгов"].dropna().unique())
 selected_years = st.sidebar.multiselect("Год торгов", all_years, default=all_years)
 
-_conf_order = ["Высокое", "1 вариант", "2 варианта", "3 варианта", "4 варианта", "5 вариантов"]
+_conf_order = ["Высокое", "Вероятный", "2 варианта", "3 варианта", "4 варианта", "5 вариантов"]
 all_match_conf = [c for c in _conf_order if c in set(df["match_confidence_label"].dropna().unique())]
 selected_match_conf = st.sidebar.multiselect("Качество совпадения", all_match_conf, default=all_match_conf)
 
