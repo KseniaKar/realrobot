@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import csv
 import math
+import re
 from pathlib import Path
 
 BASE_DIR   = Path(__file__).resolve().parent
@@ -23,12 +24,15 @@ MAX_DISTANCE_M = 250
 
 IMPLAUSIBLE_SUBSTRINGS = [
     "Станции зарядки телефонов",
+    "Станции зарядки мобильных телефонов",
     "Постаматы",
     "Питьевая вода",
     "Кофейные автоматы",
     "Банкоматы",
     "Терминалы оплаты",
     "Платёжные терминалы",
+    "Детские развлекательные автоматы",
+    "Фотокабины / Автоматы фотопечати",
     "Аварийные / справочные / экстренные службы -> Справочные",
     "Жилищно-коммунальные",
     "Правоохранительные органы",
@@ -50,7 +54,17 @@ IMPLAUSIBLE_NAME_SUBSTRINGS = [
     "пункт сбора отработанных",
     "приема батареек",
     "приёма батареек",
+    "добрыекрышечки",
+    "немузеймусора",
+    "автомат с ",
+    "пункт приёма",
+    "пункт приема",
 ]
+
+_ADDRESS_LIKE_RE = re.compile(
+    r"\b(улица|переулок|проспект|бульвар|шоссе|набережная|площадь|проезд|тупик)\b.{0,30}\d",
+    re.IGNORECASE,
+)
 
 
 BRAND_ALIASES = {
@@ -120,7 +134,9 @@ def is_implausible(name, usage):
     if any(s in u for s in IMPLAUSIBLE_SUBSTRINGS):
         return True
     n = (name or "").lower()
-    return any(s.lower() in n for s in IMPLAUSIBLE_NAME_SUBSTRINGS)
+    if any(s.lower() in n for s in IMPLAUSIBLE_NAME_SUBSTRINGS):
+        return True
+    return bool(_ADDRESS_LIKE_RE.search(name or ""))
 
 
 def main():
