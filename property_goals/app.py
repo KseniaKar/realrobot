@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-27-candidates-display-v2"
+APP_BUILD = "2026-04-27-candidates-display-v3"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -129,8 +129,7 @@ def format_match_confidence(conf: object, preview: object = None) -> str:
     if c == "high":
         return "Высокое"
     if c == "medium":
-        n = len([x for x in str(preview or "").split("|") if x.strip()])
-        return f"Варианты ({n})" if n > 1 else "Варианты"
+        return "Несколько вариантов"
     return "Нет"
 
 
@@ -268,8 +267,8 @@ st.caption(f"Build: {APP_BUILD}")
 
 all_forms = sorted(df["форма_проведения"].dropna().unique())
 selected_form = st.selectbox("Форма проведения", ["Все"] + all_forms, index=0)
-all_match_conf = [item for item in df["match_confidence_label"].dropna().unique() if item != "Нет"]
-all_match_conf = sorted(all_match_conf, key=lambda x: (0 if x == "Высокое" else 1))
+_conf_options = ["Высокое", "Несколько вариантов"]
+all_match_conf = [c for c in _conf_options if c in set(df["match_confidence_label"].dropna().unique())]
 selected_match_conf = st.selectbox("Качество совпадения", ["Все"] + all_match_conf, index=0)
 selected_match = st.selectbox("Арендатор найден", ["Все", "Да", "Нет"], index=0)
 
@@ -370,7 +369,8 @@ for _, row in map_df.iterrows():
     if _conf_raw == "medium":
         _candidates = [c.strip() for c in str(row.get("company_candidates_preview", "")).split("|") if c.strip()]
         _usages = [u.strip() for u in str(row.get("usage_candidates_preview", "")).split("|") if u.strip()]
-        _tenant_label = "Варианты арендатора"
+        _n = len(_candidates)
+        _tenant_label = f"Варианты арендатора ({_n})" if _n > 1 else "Варианты арендатора"
         _tenant_value = "<br>".join(f"· {c}" for c in _candidates) if _candidates else likely_company
         _usage_label = "Варианты категории"
         _usage_value = "<br>".join(f"· {u}" for u in _usages) if _usages else likely_usage
