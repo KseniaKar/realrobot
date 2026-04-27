@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-27-candidates-display-v6"
+APP_BUILD = "2026-04-27-business-history-v7"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -216,6 +216,7 @@ def load_data() -> pd.DataFrame:
         "match_after_days",
         "match_time_window",
         "multilot_building",
+        "история_бизнесов",
     ]:
         if col not in df.columns:
             df[col] = ""
@@ -367,6 +368,12 @@ for _, row in map_df.iterrows():
             <tr><td><b>Дата торгов:</b></td><td>{_sale_date}</td></tr>"""
     else:
         _match_timing_rows = ""
+    _history_raw = safe_text(row.get("история_бизнесов", ""))
+    if _history_raw and _history_raw != "—":
+        _history_items = "".join(f"<br>· {b.strip()}" for b in _history_raw.split("|") if b.strip())
+        _history_row = f'<tr><td valign="top"><b>Все бизнесы:</b></td><td style="font-size:11px;line-height:1.5;">{_history_items}</td></tr>'
+    else:
+        _history_row = ""
     _is_multilot = str(row.get("multilot_building", "")).strip() == "1"
     _multilot_row = '<tr><td colspan="2" style="color:#b45309;font-size:11px;">⚠ Здание с несколькими лотами — арендатор предположительный</td></tr>' if _is_multilot else ""
     _conf_raw = str(row.get("match_confidence", "")).strip().lower()
@@ -399,6 +406,7 @@ for _, row in map_df.iterrows():
             <tr><td valign="top"><b>{_usage_label}:</b></td><td>{_usage_value}</td></tr>
             <tr><td><b>Совпадение:</b></td><td>{row['match_confidence_label']}</td></tr>
             {_multilot_row}
+            {_history_row}
             {f'<tr><td><b>Подходящая категория:</b></td><td>{safe_text(row["rs_top_category"])}</td></tr><tr><td><b>Подходящие сети:</b></td><td style="font-size:11px;">{safe_text(str(row["rs_top_chains"])[:120])}</td></tr>' if not likely_company and row.get("rs_top_category") else ''}
         </table>
         <br><a href="{row['url']}" target="_blank" style="color: #1a73e8;">→ Подробнее на investmoscow.ru</a>
@@ -455,6 +463,7 @@ display_cols = [
     "match_after_days",
     "likely_company",
     "likely_usage",
+    "история_бизнесов",
     "rs_top_category",
     "rs_top_chains",
     "превышение_цены_%",
@@ -485,6 +494,7 @@ st.dataframe(
         "match_after_days": st.column_config.NumberColumn("Дней до матча", format="%d"),
         "likely_company": "Арендатор",
         "likely_usage": "Категория",
+        "история_бизнесов": st.column_config.TextColumn("Все бизнесы", width="large"),
         "rs_top_category": "Подходящая категория",
         "rs_top_chains": st.column_config.TextColumn("Подходящие сети", width="medium"),
         "превышение_цены_%": st.column_config.NumberColumn("Превышение", format="%+.1f%%"),
