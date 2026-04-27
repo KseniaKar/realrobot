@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-27-multilot-flag-v1"
+APP_BUILD = "2026-04-27-candidates-display-v2"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -122,11 +122,16 @@ def get_color(excess: float) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def format_match_confidence(value: object) -> str:
-    if not isinstance(value, str) or not value.strip():
+def format_match_confidence(conf: object, preview: object = None) -> str:
+    if not isinstance(conf, str) or not conf.strip():
         return "Нет"
-    mapping = {"high": "Высокое", "medium": "Среднее", "low": "Низкое", "none": "Нет"}
-    return mapping.get(value.strip().lower(), value)
+    c = conf.strip().lower()
+    if c == "high":
+        return "Высокое"
+    if c == "medium":
+        n = len([x for x in str(preview or "").split("|") if x.strip()])
+        return f"Варианты ({n})" if n > 1 else "Варианты"
+    return "Нет"
 
 
 def safe_text(value: object, fallback: str = "—") -> str:
@@ -213,7 +218,10 @@ def load_data() -> pd.DataFrame:
         if col not in df.columns:
             df[col] = ""
     df["match_confidence"] = df["match_confidence"].fillna("").astype(str)
-    df["match_confidence_label"] = df["match_confidence"].apply(format_match_confidence)
+    df["match_confidence_label"] = df.apply(
+        lambda r: format_match_confidence(r["match_confidence"], r.get("company_candidates_preview")),
+        axis=1,
+    )
     df["match_after_days"] = pd.to_numeric(df["match_after_days"], errors="coerce")
     def _match_source(row) -> str:
         tw = str(row.get("match_time_window") or "")
@@ -260,7 +268,8 @@ st.caption(f"Build: {APP_BUILD}")
 
 all_forms = sorted(df["форма_проведения"].dropna().unique())
 selected_form = st.selectbox("Форма проведения", ["Все"] + all_forms, index=0)
-all_match_conf = [item for item in ["Высокое", "Среднее", "Низкое", "Нет"] if item in set(df["match_confidence_label"].dropna().unique())]
+all_match_conf = [item for item in df["match_confidence_label"].dropna().unique() if item != "Нет"]
+all_match_conf = sorted(all_match_conf, key=lambda x: (0 if x == "Высокое" else 1))
 selected_match_conf = st.selectbox("Качество совпадения", ["Все"] + all_match_conf, index=0)
 selected_match = st.selectbox("Арендатор найден", ["Все", "Да", "Нет"], index=0)
 
@@ -357,6 +366,19 @@ for _, row in map_df.iterrows():
         _match_timing_rows = ""
     _is_multilot = str(row.get("multilot_building", "")).strip() == "1"
     _multilot_row = '<tr><td colspan="2" style="color:#b45309;font-size:11px;">⚠ Здание с несколькими лотами — арендатор предположительный</td></tr>' if _is_multilot else ""
+    _conf_raw = str(row.get("match_confidence", "")).strip().lower()
+    if _conf_raw == "medium":
+        _candidates = [c.strip() for c in str(row.get("company_candidates_preview", "")).split("|") if c.strip()]
+        _usages = [u.strip() for u in str(row.get("usage_candidates_preview", "")).split("|") if u.strip()]
+        _tenant_label = "Варианты арендатора"
+        _tenant_value = "<br>".join(f"· {c}" for c in _candidates) if _candidates else likely_company
+        _usage_label = "Варианты категории"
+        _usage_value = "<br>".join(f"· {u}" for u in _usages) if _usages else likely_usage
+    else:
+        _tenant_label = "Арендатор"
+        _tenant_value = likely_company
+        _usage_label = "Категория"
+        _usage_value = likely_usage
     popup_html = f"""
     <div style="font-family: Arial, sans-serif; min-width: 340px;">
         <h4 style="margin: 0 0 8px; color: #333;">Лот #{row['номер_лота']}</h4>
@@ -369,9 +391,9 @@ for _, row in map_df.iterrows():
             <tr><td><b>Участники:</b></td><td>{row['участники'] if pd.notna(row['участники']) else '—'}</td></tr>
             <tr><td><b>Округ:</b></td><td>{row['округ_код']}</td></tr>
             <tr><td><b>Этаж:</b></td><td>{row['этаж_норм']}</td></tr>{_match_timing_rows}
-            <tr><td><b>Арендатор:</b></td><td>{likely_company}</td></tr>
-            <tr><td><b>Категория:</b></td><td>{likely_usage}</td></tr>
-            <tr><td><b>Качество матча:</b></td><td>{row['match_confidence_label']}</td></tr>
+            <tr><td valign="top"><b>{_tenant_label}:</b></td><td>{_tenant_value}</td></tr>
+            <tr><td valign="top"><b>{_usage_label}:</b></td><td>{_usage_value}</td></tr>
+            <tr><td><b>Совпадение:</b></td><td>{row['match_confidence_label']}</td></tr>
             {_multilot_row}
             {f'<tr><td><b>Подходящая категория:</b></td><td>{safe_text(row["rs_top_category"])}</td></tr><tr><td><b>Подходящие сети:</b></td><td style="font-size:11px;">{safe_text(str(row["rs_top_chains"])[:120])}</td></tr>' if not likely_company and row.get("rs_top_category") else ''}
         </table>
