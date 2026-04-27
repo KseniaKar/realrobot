@@ -81,6 +81,9 @@ BRAND_ALIASES = {
 }
 
 
+KNOWN_BRANDS = set(BRAND_ALIASES.values())
+
+
 def normalize_name(raw_name: str) -> str:
     """Return canonical brand name: strip suffix after first comma, apply aliases."""
     name = raw_name.split(",")[0].strip()
@@ -173,7 +176,10 @@ def main():
                 if is_implausible(name, u):
                     continue
                 canonical = normalize_name(name)
-                entry = f"{canonical} ({u})" if u else canonical
+                if canonical in KNOWN_BRANDS:
+                    entry = canonical
+                else:
+                    entry = f"{canonical} ({u})" if u else canonical
                 for lid, _, __ in lot_list:
                     history[lid].add(entry)
 
