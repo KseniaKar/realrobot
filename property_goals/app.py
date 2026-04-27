@@ -638,6 +638,28 @@ _hist_med_matched   = int(_hist_sizes[_matched_mask & _has_hist].median())
 _hist_med_unmatched = int(_hist_sizes[~_matched_mask & _has_hist].median())
 _stable_n = int((_hist_sizes == 1).sum())
 
+def _parse_hist(s):
+    return [e.strip() for e in s.split("|") if e.strip()]
+
+def _primary_cat(entry):
+    if "(" in entry and entry.endswith(")"):
+        return entry[entry.rfind("(")+1:-1].strip()
+    return entry
+
+_now_cats  = pd.Series([_primary_cat(e)
+    for s in df["сейчас_в_здании"].fillna("") for e in _parse_hist(s)])
+_gone_cats = pd.Series([_primary_cat(e)
+    for s in df["были_в_здании"].fillna("") for e in _parse_hist(s)])
+_now_vc  = _now_cats.value_counts()
+_gone_vc = _gone_cats.value_counts()
+_all_cats_idx = (_now_vc.add(_gone_vc, fill_value=0))
+_survival = (_now_vc.divide(_all_cats_idx).fillna(0))
+_min_total = 50
+_eligible  = _all_cats_idx[_all_cats_idx >= _min_total].index
+_surv_filt = _survival[_eligible].sort_values()
+_stable_cats = _surv_filt.tail(5).index[::-1].tolist()
+_gone_top_cats = _surv_filt.head(5).index.tolist()
+
 with i1:
     st.info(
         f"**Треть помещений — пункты выдачи маркетплейсов.**  \n"
@@ -665,6 +687,22 @@ with i2:
         "2-й этаж и выше практически не сдаются. "
         f"Медиана открытия — {_med_days} дней после покупки, "
         f"{_fast_pct}% открываются в первые 3 месяца."
+    )
+
+i3, i4 = st.columns(2)
+with i3:
+    _stable_str = ", ".join(_stable_cats)
+    st.info(
+        f"**Кто остаётся в зданиях.**  \n"
+        f"Самые стабильные категории в радиусе 250 м: {_stable_str}. "
+        "Сетевой ретейл и маркетплейсы открылись — и не уходят."
+    )
+with i4:
+    _gone_str = ", ".join(_gone_top_cats)
+    st.info(
+        f"**Кто исчезает.**  \n"
+        f"Категории, которых почти не осталось: {_gone_str}. "
+        "B2B-сервисы и специализированные офисы уходят из уличного ретейла."
     )
 
 # ── Match by year ────────────────────────────────────────────────────────────
