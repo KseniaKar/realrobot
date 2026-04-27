@@ -371,7 +371,7 @@ for _, row in map_df.iterrows():
     _history_raw = safe_text(row.get("история_бизнесов", ""))
     if _history_raw and _history_raw != "—":
         _history_items = "".join(f"<br>· {b.strip()}" for b in _history_raw.split("|") if b.strip())
-        _history_row = f'<tr><td valign="top"><b>История помещения:</b></td><td style="font-size:11px;line-height:1.5;">{_history_items}</td></tr>'
+        _history_row = f'<tr><td valign="top"><b>История здания:</b></td><td style="font-size:11px;line-height:1.5;">{_history_items}</td></tr>'
     else:
         _history_row = ""
     _is_multilot = str(row.get("multilot_building", "")).strip() == "1"
@@ -494,7 +494,7 @@ st.dataframe(
         "match_after_days": st.column_config.NumberColumn("Дней до матча", format="%d"),
         "likely_company": "Арендатор",
         "likely_usage": "Категория",
-        "история_бизнесов": st.column_config.TextColumn("История помещения", width="large"),
+        "история_бизнесов": st.column_config.TextColumn("История здания", width="large"),
         "rs_top_category": "Подходящая категория",
         "rs_top_chains": st.column_config.TextColumn("Подходящие сети", width="medium"),
         "превышение_цены_%": st.column_config.NumberColumn("Превышение", format="%+.1f%%"),
@@ -654,26 +654,6 @@ with i2:
         "2-й этаж и выше практически не сдаются. "
         f"Медиана открытия — {_med_days} дней после покупки, "
         f"{_fast_pct}% открываются в первые 3 месяца."
-    )
-
-st.divider()
-st.markdown("#### История помещений")
-st.caption(
-    "История собирается по всем бизнесам в радиусе 250 м за 6 лет срезов 2GIS — "
-    "это коммерческий контекст района, а не конкретного помещения."
-)
-ih1, ih2 = st.columns(2)
-with ih1:
-    st.info(
-        f"**Медиана — 8 бизнесов рядом за 6 лет.**  \n"
-        f"У {_stable_n} адресов в радиусе 250 м за всё время появился только один бизнес — "
-        "тихие жилые локации с минимальной коммерческой активностью."
-    )
-with ih2:
-    st.info(
-        f"**До 100+ бизнесов в радиусе 250 м за 6 лет.**  \n"
-        "Как правило, это торговые центры и рынки: на одном адресе в 2GIS числится весь арендный пул здания. "
-        "Какое именно помещение занял каждый бизнес — из этих данных неизвестно."
     )
 
 # ── Match by year ────────────────────────────────────────────────────────────
