@@ -33,10 +33,15 @@ IMPLAUSIBLE_SUBSTRINGS = [
     "Платёжные терминалы",
     "Детские развлекательные автоматы",
     "Фотокабины / Автоматы фотопечати",
-    "Аварийные / справочные / экстренные службы →Справочные",
+    "Копировальные услуги",
+    "Государственные дошкольные учреждения",
+    "Общеобразовательные школы",
+    "Органы государственной власти",
+    "Многофункциональные центры",
+    "Аварийные / справочные / экстренные службы",
     "Жилищно-коммунальные",
     "Правоохранительные органы",
-    "Новостройки →Новостройки",
+    "Новостройки",
     "Общественные / политические организации",
 ]
 
@@ -59,6 +64,7 @@ IMPLAUSIBLE_NAME_SUBSTRINGS = [
     "автомат с ",
     "пункт приёма",
     "пункт приема",
+    "автомат копировальных",
 ]
 
 _ADDRESS_LIKE_RE = re.compile(
@@ -96,6 +102,12 @@ BRAND_ALIASES = {
     "ямосковское долголетие": "Московское долголетие",
     "центр московского долголетия и молодости": "Московское долголетие",
     "центр московского долголетия": "Московское долголетие",
+    "invitro": "INVITRO",
+    "инвитро": "INVITRO",
+    "coral travel": "Coral Travel",
+    "coral travel москва": "Coral Travel",
+    "eurospar": "Eurospar",
+    "eurospar express": "Eurospar Express",
 }
 
 
@@ -160,8 +172,10 @@ def main():
 
     print(f"Lots loaded: {len(lot_ids)}, unique addresses: {len(lots_by_addr)}")
 
-    # history: lot_id →set of "Name (Usage)" strings
-    history: dict[str, set[str]] = {lid: set() for lid in lot_ids}
+    # history: lot_id -> {canonical_lower: display_entry}
+    # Key is lowercase canonical name — ensures same brand with different rubric
+    # variations or capitalizations is stored only once (first occurrence wins).
+    history: dict[str, dict[str, str]] = {lid: {} for lid in lot_ids}
 
     snapshots = sorted(MOSCOW_DIR.glob("*.with_norm.csv"))
     print(f"Snapshots to process: {len(snapshots)}")
@@ -200,8 +214,10 @@ def main():
                     entry = canonical
                 else:
                     entry = f"{canonical} ({u})" if u else canonical
+                key = canonical.lower()
                 for lid, _, __ in lot_list:
-                    history[lid].add(entry)
+                    if key not in history[lid]:
+                        history[lid][key] = entry
 
         print(f"done")
 
@@ -220,7 +236,7 @@ def main():
     filled = 0
     for row in rows:
         lid = str(row.get("номер_лота", "")).strip()
-        entries = sorted(history.get(lid, set()))
+        entries = sorted(history.get(lid, {}).values())
         if entries:
             row[col] = " | ".join(entries)
             filled += 1
