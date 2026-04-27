@@ -38,6 +38,7 @@ IMPLAUSIBLE_SUBSTRINGS = [
     "Общеобразовательные школы",
     "Органы государственной власти",
     "Многофункциональные центры",
+    "Библиотеки",
     "Аварийные / справочные / экстренные службы",
     "Жилищно-коммунальные",
     "Правоохранительные органы",
@@ -119,6 +120,12 @@ def normalize_name(raw_name: str) -> str:
     name = raw_name.split(",")[0].strip()
     key = name.lower().strip()
     return BRAND_ALIASES.get(key, name)
+
+
+def primary_rubric(row: dict) -> str:
+    """Return first rubric only — avoids kilometre-long subrubric lists."""
+    rubric = (row.get("rubric") or "").strip()
+    return rubric.split(",")[0].strip()
 
 
 def haversine_m(lat1, lon1, lat2, lon2):
@@ -213,7 +220,8 @@ def main():
                 if canonical in KNOWN_BRANDS:
                     entry = canonical
                 else:
-                    entry = f"{canonical} ({u})" if u else canonical
+                    cat = primary_rubric(org)
+                    entry = f"{canonical} ({cat})" if cat else canonical
                 key = canonical.lower()
                 for lid, _, __ in lot_list:
                     if key not in history[lid]:
