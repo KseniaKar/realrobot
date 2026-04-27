@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-27-candidates-display-v3"
+APP_BUILD = "2026-04-27-candidates-display-v4"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -129,7 +129,10 @@ def format_match_confidence(conf: object, preview: object = None) -> str:
     if c == "high":
         return "Высокое"
     if c == "medium":
-        return "Несколько вариантов"
+        n = len([x for x in str(preview or "").split("|") if x.strip()])
+        if n <= 1:
+            return "1 вариант"
+        return f"{n} варианта" if n in (2, 3, 4) else f"{n} вариантов"
     return "Нет"
 
 
@@ -267,15 +270,16 @@ st.caption(f"Build: {APP_BUILD}")
 
 all_forms = sorted(df["форма_проведения"].dropna().unique())
 selected_form = st.selectbox("Форма проведения", ["Все"] + all_forms, index=0)
-_conf_options = ["Высокое", "Несколько вариантов"]
-all_match_conf = [c for c in _conf_options if c in set(df["match_confidence_label"].dropna().unique())]
-selected_match_conf = st.selectbox("Качество совпадения", ["Все"] + all_match_conf, index=0)
 selected_match = st.selectbox("Арендатор найден", ["Все", "Да", "Нет"], index=0)
 
 st.sidebar.title("Фильтры")
 
 all_years = sorted(df["год_торгов"].dropna().unique())
 selected_years = st.sidebar.multiselect("Год торгов", all_years, default=all_years)
+
+_conf_order = ["Высокое", "1 вариант", "2 варианта", "3 варианта", "4 варианта", "5 вариантов"]
+all_match_conf = [c for c in _conf_order if c in set(df["match_confidence_label"].dropna().unique())]
+selected_match_conf = st.sidebar.multiselect("Качество совпадения", all_match_conf, default=all_match_conf)
 
 all_okrugs = sorted(df["округ_код"].dropna().unique())
 selected_okrugs = st.sidebar.multiselect("Округ", all_okrugs, default=all_okrugs)
@@ -312,7 +316,7 @@ filtered = df[
     & df["год_торгов"].isin(selected_years)
     & df["округ_код"].isin(selected_okrugs)
     & df["этаж_норм"].isin(selected_floors)
-    & ((df["match_confidence_label"] == selected_match_conf) if selected_match_conf != "Все" else True)
+    & (df["match_confidence_label"].isin(selected_match_conf) if selected_match_conf != all_match_conf else True)
     & (
         True if selected_match == "Все"
         else (df["match_confidence"].fillna("").str.strip() != "") if selected_match == "Да"
