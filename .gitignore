@@ -1,6 +1,15 @@
 # Папка с данными парсера
 web-parsers/investmoskow/data/
 
+# Property goals — большие data-файлы (срезы 2GIS, архив, бэкап)
+property_goals/moscow/
+property_goals/moscow.zip
+property_goals/investmoscow_sold_2022_2026_clean.with_norm.csv
+property_goals/investmoscow_sold_2022_2026_enriched_geo.csv.bak
+property_goals/.claude/
+property_goals/check.txt
+property_goals/matches/property_usage_*.csv
+
 # Папка с ноутбуками
 notebooks/
 

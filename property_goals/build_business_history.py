@@ -38,11 +38,54 @@ IMPLAUSIBLE_SUBSTRINGS = [
 
 IMPLAUSIBLE_NAME_SUBSTRINGS = [
     "банкомат",
+    "5post",
+    "5 post",
+    "qiwi",
+    "киви",
+    "бери заряд",
+    "автомат по продаже кофе",
+    "кофейный автомат",
+    "зарядная станция",
     "контейнер для сбора",
     "пункт сбора отработанных",
     "приема батареек",
     "приёма батареек",
 ]
+
+
+BRAND_ALIASES = {
+    "wildberries": "Wildberries",
+    "вайлдберриз": "Wildberries",
+    "ozon": "Ozon",
+    "озон": "Ozon",
+    "яндекс маркет": "Яндекс Маркет",
+    "яндекс.маркет": "Яндекс Маркет",
+    "сдэк": "СДЭК",
+    "cdek": "СДЭК",
+    "авито": "Авито",
+    "магнит": "Магнит",
+    "пятёрочка": "Пятёрочка",
+    "пятерочка": "Пятёрочка",
+    "вкусвилл": "ВкусВилл",
+    "вкус вилл": "ВкусВилл",
+    "fix price": "Fix Price",
+    "фикс прайс": "Fix Price",
+    "красное&белое": "Красное&Белое",
+    "красное & белое": "Красное&Белое",
+    "винлаб": "Винлаб",
+    "dns": "DNS",
+    "днс": "DNS",
+    "перекрёсток": "Перекрёсток",
+    "перекресток": "Перекрёсток",
+    "лента": "Лента",
+}
+
+
+def normalize_name(raw_name: str) -> str:
+    """Return canonical brand name: strip suffix after first comma, apply aliases."""
+    name = raw_name.split(",")[0].strip()
+    key = name.lower().strip()
+    return BRAND_ALIASES.get(key, name)
 
 
 def haversine_m(lat1, lon1, lat2, lon2):
@@ -129,7 +172,8 @@ def main():
                 u = usage_str(org)
                 if is_implausible(name, u):
                     continue
-                entry = f"{name} ({u})" if u else name
+                canonical = normalize_name(name)
+                entry = f"{canonical} ({u})" if u else canonical
                 for lid, _, __ in lot_list:
                     history[lid].add(entry)
 
