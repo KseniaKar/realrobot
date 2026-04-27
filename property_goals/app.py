@@ -506,31 +506,11 @@ st.dataframe(
     },
 )
 
-# ── Инсайты ────────────────────────────────────────────────────────────────────────────────
+# ── Аналитика ───────────────────────────────────────────────────────────────────────────────
 st.divider()
-st.subheader("Инсайты и выводы")
+st.subheader("Аналитика")
 
 _matched = df[df["match_confidence"].fillna("").str.strip() != ""]
-_n = len(_matched)
-_total = len(df)
-_revenue_bln = df["итоговая_цена_млн"].sum() / 1000
-_median_price = df["итоговая_цена_млн"].median()
-_excess_valid = df[df["начальная_цена_руб"] > 0]["превышение_цены_%"].dropna()
-_excess_pct = (_excess_valid > 0).mean() * 100
-_excess_pos = _excess_valid[_excess_valid > 0]
-_excess_med = _excess_pos.median() if len(_excess_pos) > 0 else 0
-_excess_max = _excess_valid.max() if len(_excess_valid) > 0 else 0
-_wb_ozon = _matched["likely_company"].fillna("").str.contains("Wildberries|Ozon", case=False).sum()
-
-_beauty_cats = ["Красота", "Медицина", "Стоматолог", "Барбер"]
-_beauty_n = _matched["likely_usage"].fillna("").apply(
-    lambda u: any(c.lower() in u.lower() for c in _beauty_cats)
-).sum()
-
-_public_share = (
-    df["форма_проведения"].fillna("").str.contains("публичн", case=False).mean() * 100
-    if "форма_проведения" in df.columns else 0
-)
 
 _by_year = (
     df.groupby("год_торгов")
@@ -541,27 +521,42 @@ _by_year = (
     .reset_index()
 )
 _by_year["% матча"] = (_by_year["с матчем"] / _by_year["всего"] * 100).round(0).astype(int)
-_by_year_indexed = _by_year.set_index("год_торгов")
-_year_min_match = _by_year.loc[_by_year["% матча"].idxmin(), "год_торгов"]
-_pct_min = _by_year["% матча"].min()
 
-_best_year = df.groupby("год_торгов").size().idxmax()
-_best_year_n = df.groupby("год_торгов").size().max()
+_CHART_ALIASES = {
+    "wildberries": "Wildberries",
+    "вайлдберриз": "Wildberries",
+    "ozon": "Ozon",
+    "озон": "Ozon",
+    "яндекс маркет": "Яндекс Маркет",
+    "яндекс.маркет": "Яндекс Маркет",
+    "сдэк": "СДЭК",
+    "cdek": "СДЭК",
+    "авито": "Авито",
+    "магнит": "Магнит",
+    "пятёрочка": "Пятёрочка",
+    "пятерочка": "Пятёрочка",
+    "вкусвилл": "ВкусВилл",
+    "fix price": "Fix Price",
+    "красное&белое": "Красное&Белое",
+    "красное & белое": "Красное&Белое",
+    "винлаб": "Винлаб",
+    "dns": "DNS",
+    "перекрёсток": "Перекрёсток",
+    "перекресток": "Перекрёсток",
+    "лента": "Лента",
+    "московское долголетие": "Московское долголетие",
+    "ямосковское долголетие": "Московское долголетие",
+}
 
-# Графики
+def _norm_chart(raw):
+    name = raw.split(",")[0].strip()
+    return _CHART_ALIASES.get(name.lower(), name)
+
 st.markdown("**Топ компаний-арендаторов**")
-_companies = _matched["likely_company"].fillna("").str.split("|").str[0].str.strip()
-_companies = _companies[_companies != ""]
-_companies = (
-    _companies
-    .str.replace(r"Wildberries,.*", "Wildberries (ПВЗ)", regex=True)
-    .str.replace(r"Магнит,.*", "Магнит", regex=True)
-    .str.replace(r"Красное&Белое,.*", "Красное&Белое", regex=True)
-    .str.replace(r"Яндекс Маркет,.*", "Яндекс Маркет (ПВЗ)", regex=True)
-    .str.replace(r"Барберхаус,.*", "Барберхаус", regex=True)
-    .str.replace(r"Винлаб,.*", "Винлаб", regex=True)
-)
-_co_counts = _companies.value_counts().head(10)
+_co_df = _matched[["likely_company", "address_norm"]].copy()
+_co_df["company"] = _co_df["likely_company"].fillna("").str.split("|").str[0].str.strip().apply(_norm_chart)
+_co_df = _co_df[_co_df["company"] != ""].drop_duplicates(subset=["company", "address_norm"])
+_co_counts = _co_df["company"].value_counts().head(10)
 fig, ax = plt.subplots(figsize=(8, 3))
 ax.barh(_co_counts.index[::-1], _co_counts.values[::-1])
 ax.set_xlabel("лотов")
@@ -569,48 +564,9 @@ plt.tight_layout()
 st.pyplot(fig)
 plt.close(fig)
 
-# Текстовые выводы
-st.markdown("#### Ключевые выводы")
-ki1, ki2 = st.columns(2)
-with ki1:
-    _wb_ratio = round(_n / _wb_ozon) if _wb_ozon > 0 else 0
-    st.info(
-        "**Маркетплейсы — главный тренд.**  \n"
-        f"Каждый {_wb_ratio}-й установленный арендатор — "
-        "пункт выдачи Wildberries или Ozon. "
-        "Городские помещения массово перепрофилируются под логистику последней мили."
-    )
-    st.info(
-        "**Красота и сервис — второй кластер.**  \n"
-        f"Барбершопы, ногтевые студии, стоматологии — суммарно {_beauty_n} лотов. "
-        "Типичный профиль: 50–100 м², 1 этаж, жилой район."
-    )
-    st.info(
-        "**Аукцион реально конкурентный.**  \n"
-        f"{_excess_pct:.0f}% лотов уходят дороже старта, медиана +{_excess_med:.1f}%. "
-        f"Рекорд — превышение +{_excess_max:.0f}%."
-    )
-with ki2:
-    st.info(
-        "**Публичное предложение — индикатор неликвида.**  \n"
-        f"{_public_share:.0f}% лотов уходят на нисходящем аукционе — подвалы, "
-        "нестандартные площади, плохая локация. Берут только с дисконтом."
-    )
-    st.info(
-        f"**{_n/_total*100:.0f}% — не предел.**  \n"
-        "ИП, склады и производства редко регистрируются в 2GIS — их не видно. "
-        "Ранние лоты (2022) хуже покрыты из-за пробелов в срезах. "
-        "В одном здании может быть несколько лотов — кому из них достался арендатор, точно неизвестно."
-    )
-
-# Дополнительная аналитика
-st.markdown("#### Детали матчинга")
-da1 = st.container()
-
-with da1:
-    st.markdown("**Матчи по году продажи**")
-    st.dataframe(
-        _by_year.rename(columns={"год_торгов": "Год"}).set_index("Год"),
-        use_container_width=True,
-    )
+st.markdown("**Матчи по году продажи**")
+st.dataframe(
+    _by_year.rename(columns={"год_торгов": "Год"}).set_index("Год"),
+    use_container_width=True,
+)
 
