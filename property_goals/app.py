@@ -217,6 +217,8 @@ def load_data() -> pd.DataFrame:
         "match_time_window",
         "multilot_building",
         "история_бизнесов",
+        "сейчас_в_здании",
+        "были_в_здании",
     ]:
         if col not in df.columns:
             df[col] = ""
@@ -368,12 +370,15 @@ for _, row in map_df.iterrows():
             <tr><td><b>Дата торгов:</b></td><td>{_sale_date}</td></tr>"""
     else:
         _match_timing_rows = ""
-    _history_raw = safe_text(row.get("история_бизнесов", ""))
-    if _history_raw and _history_raw != "—":
-        _history_items = "".join(f"<br>· {b.strip()}" for b in _history_raw.split("|") if b.strip())
-        _history_row = f'<tr><td valign="top"><b>История здания:</b></td><td style="font-size:11px;line-height:1.5;">{_history_items}</td></tr>'
-    else:
-        _history_row = ""
+    def _biz_list_row(label, raw):
+        if not raw or raw == "—":
+            return ""
+        items = "".join(f"<br>· {b.strip()}" for b in raw.split("|") if b.strip())
+        return f'<tr><td valign="top"><b>{label}:</b></td><td style="font-size:11px;line-height:1.5;">{items}</td></tr>'
+
+    _history_row = _biz_list_row("История здания", safe_text(row.get("история_бизнесов", "")))
+    _now_row     = _biz_list_row("Сейчас в здании", safe_text(row.get("сейчас_в_здании", "")))
+    _gone_row    = _biz_list_row("Были в здании", safe_text(row.get("были_в_здании", "")))
     _is_multilot = str(row.get("multilot_building", "")).strip() == "1"
     _multilot_row = '<tr><td colspan="2" style="color:#b45309;font-size:11px;">⚠ Здание с несколькими лотами — арендатор предположительный</td></tr>' if _is_multilot else ""
     _conf_raw = str(row.get("match_confidence", "")).strip().lower()
@@ -406,6 +411,8 @@ for _, row in map_df.iterrows():
             <tr><td valign="top"><b>{_usage_label}:</b></td><td>{_usage_value}</td></tr>
             <tr><td><b>Совпадение:</b></td><td>{row['match_confidence_label']}</td></tr>
             {_multilot_row}
+            {_now_row}
+            {_gone_row}
             {_history_row}
             {f'<tr><td><b>Подходящая категория:</b></td><td>{safe_text(row["rs_top_category"])}</td></tr><tr><td><b>Подходящие сети:</b></td><td style="font-size:11px;">{safe_text(str(row["rs_top_chains"])[:120])}</td></tr>' if not likely_company and row.get("rs_top_category") else ''}
         </table>
@@ -463,6 +470,8 @@ display_cols = [
     "match_after_days",
     "likely_company",
     "likely_usage",
+    "сейчас_в_здании",
+    "были_в_здании",
     "история_бизнесов",
     "rs_top_category",
     "rs_top_chains",
@@ -494,6 +503,8 @@ st.dataframe(
         "match_after_days": st.column_config.NumberColumn("Дней до матча", format="%d"),
         "likely_company": "Арендатор",
         "likely_usage": "Категория",
+        "сейчас_в_здании": st.column_config.TextColumn("Сейчас в здании", width="medium"),
+        "были_в_здании": st.column_config.TextColumn("Были в здании", width="medium"),
         "история_бизнесов": st.column_config.TextColumn("История здания", width="large"),
         "rs_top_category": "Подходящая категория",
         "rs_top_chains": st.column_config.TextColumn("Подходящие сети", width="medium"),

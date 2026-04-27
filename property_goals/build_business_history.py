@@ -21,6 +21,7 @@ LOTS_SRC   = BASE_DIR / "investmoscow_sold_2022_2026_clean.with_norm.csv"
 ENRICHED_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 
 MAX_DISTANCE_M = 250
+LATEST_LABEL   = "2026-04"
 
 IMPLAUSIBLE_SUBSTRINGS = [
     "Станции зарядки телефонов",
@@ -179,16 +180,17 @@ def main():
 
     print(f"Lots loaded: {len(lot_ids)}, unique addresses: {len(lots_by_addr)}")
 
-    # history: lot_id -> {canonical_lower: display_entry}
-    # Key is lowercase canonical name — ensures same brand with different rubric
-    # variations or capitalizations is stored only once (first occurrence wins).
+    # history: lot_id -> {canonical_lower: display_entry}  (all snapshots)
+    # current: lot_id -> {canonical_lower: display_entry}  (latest snapshot only)
     history: dict[str, dict[str, str]] = {lid: {} for lid in lot_ids}
+    current: dict[str, dict[str, str]] = {lid: {} for lid in lot_ids}
 
     snapshots = sorted(MOSCOW_DIR.glob("*.with_norm.csv"))
     print(f"Snapshots to process: {len(snapshots)}")
 
     for snap_path in snapshots:
         label = snap_path.stem.replace(".with_norm", "")
+        is_latest = label == LATEST_LABEL
         print(f"  {label} ...", end=" ", flush=True)
 
         # Index snapshot by address_norm
@@ -226,6 +228,8 @@ def main():
                 for lid, _, __ in lot_list:
                     if key not in history[lid]:
                         history[lid][key] = entry
+                    if is_latest:
+                        current[lid][key] = entry
 
         print(f"done")
 
@@ -235,21 +239,28 @@ def main():
         fieldnames = list(reader.fieldnames or [])
         rows = list(reader)
 
-    col = "история_бизнесов"
-    if col not in fieldnames:
-        fieldnames.append(col)
-        for row in rows:
-            row.setdefault(col, "")
+    for col in ("история_бизнесов", "сейчас_в_здании", "были_в_здании"):
+        if col not in fieldnames:
+            fieldnames.append(col)
+            for row in rows:
+                row.setdefault(col, "")
 
     filled = 0
     for row in rows:
         lid = str(row.get("номер_лота", "")).strip()
-        entries = sorted(history.get(lid, {}).values())
-        if entries:
-            row[col] = " | ".join(entries)
+        hist = history.get(lid, {})
+        curr = current.get(lid, {})
+        gone_keys = set(hist) - set(curr)
+
+        entries_all  = sorted(hist.values())
+        entries_now  = sorted(curr.values())
+        entries_gone = sorted(hist[k] for k in gone_keys)
+
+        row["история_бизнесов"] = " | ".join(entries_all)
+        row["сейчас_в_здании"]  = " | ".join(entries_now)
+        row["были_в_здании"]    = " | ".join(entries_gone)
+        if entries_all:
             filled += 1
-        else:
-            row[col] = ""
 
     with ENRICHED_PATH.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -257,7 +268,7 @@ def main():
         writer.writerows(rows)
 
     print(f"\nDone. Lots with business history: {filled}/{len(rows)}")
-    print(f"Column '{col}' added to {ENRICHED_PATH.name}")
+    print(f"Columns written to {ENRICHED_PATH.name}")
 
 
 if __name__ == "__main__":
