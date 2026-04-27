@@ -97,6 +97,38 @@ _ADDRESS_LIKE_RE = re.compile(
 
 CONF_RANK = {"high": 0, "medium": 1, "low": 2, "": 9}
 
+BRAND_ALIASES = {
+    "wildberries": "Wildberries",
+    "вайлдберриз": "Wildberries",
+    "ozon": "Ozon",
+    "озон": "Ozon",
+    "яндекс маркет": "Яндекс Маркет",
+    "яндекс.маркет": "Яндекс Маркет",
+    "сдэк": "СДЭК",
+    "cdek": "СДЭК",
+    "авито": "Авито",
+    "магнит": "Магнит",
+    "пятёрочка": "Пятёрочка",
+    "пятерочка": "Пятёрочка",
+    "вкусвилл": "ВкусВилл",
+    "вкус вилл": "ВкусВилл",
+    "fix price": "Fix Price",
+    "фикс прайс": "Fix Price",
+    "красное&белое": "Красное&Белое",
+    "красное & белое": "Красное&Белое",
+    "винлаб": "Винлаб",
+    "dns": "DNS",
+    "днс": "DNS",
+    "перекрёсток": "Перекрёсток",
+    "перекресток": "Перекрёсток",
+    "лента": "Лента",
+}
+
+
+def normalize_company_name(raw_name: str) -> str:
+    name = raw_name.split(",")[0].strip()
+    return BRAND_ALIASES.get(name.lower(), name)
+
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -358,7 +390,7 @@ def main() -> None:
             addr_norm = addr_norm_by_lot[lot_id]
             is_multilot = shared[(addr_norm, best_mid)] > 1
 
-            companies = [c["org"].get("name", "") for c in cands]
+            companies = [normalize_company_name(c["org"].get("name", "")) for c in cands]
             usages    = [usage_str(c["org"]) for c in cands]
 
             if conf == "high":
