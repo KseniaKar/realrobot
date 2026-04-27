@@ -547,7 +547,9 @@ _co_df["company"] = _co_df["likely_company"].fillna("").str.split("|").str[0].st
 _co_df["category"] = _co_df["likely_usage"].fillna("").apply(_norm_cat)
 _co_df["area"]     = pd.to_numeric(_co_df["площадь_м²"], errors="coerce")
 _co_df["days"]     = pd.to_numeric(_co_df["match_after_days"], errors="coerce")
-_co_df["floor1"]   = _co_df["этаж"].fillna("").astype(str).str.strip() == "1"
+_co_df["floor_norm"]    = _co_df["этаж"].apply(normalize_floor)
+_co_df["floor1"]        = _co_df["floor_norm"] == "1 этаж"
+_co_df["floor_basement"]= _co_df["floor_norm"] == "Подвал"
 
 # Deduplicated: one row per unique (company, address)
 _uniq = _co_df[_co_df["company"] != ""].drop_duplicates(subset=["company", "address_norm"])
@@ -558,6 +560,7 @@ k1, k2, k3, k4 = st.columns(4)
 _days_valid  = _co_df["days"].dropna()
 _days_valid  = _days_valid[(_days_valid > 0) & (_days_valid <= 365)]
 _floor1_pct  = int(_co_df["floor1"].mean() * 100)
+_floor_bsmt_pct = int(_co_df["floor_basement"].mean() * 100)
 _mp_n        = int((_uniq["category"] == "Маркетплейсы (ПВЗ)").sum())
 _mp_pct      = int(_mp_n / _n_unique * 100)
 
@@ -566,7 +569,7 @@ k1.metric("Уникальных арендаторов", f"{_n_unique}",
 k2.metric("Маркетплейсы (ПВЗ)", f"{_mp_n} адресов", f"{_mp_pct}% от уникальных")
 k3.metric("Медиана открытия", f"{int(_days_valid.median())} дней",
           f"{int((_days_valid < 180).mean()*100)}% за 6 мес.")
-k4.metric("1-й этаж", f"{_floor1_pct}%", "всех матчей")
+k4.metric("1-й этаж", f"{_floor1_pct}%", f"подвал: {_floor_bsmt_pct}%")
 
 # ── Charts ────────────────────────────────────────────────────────────────────
 ch1, ch2 = st.columns(2)
@@ -636,8 +639,9 @@ with i2:
         "Подходят под большинство помещений 1-го этажа в жилых районах."
     )
     st.info(
-        f"**{_floor1_pct}% арендаторов — только первый этаж.**  \n"
-        "Верхние этажи практически не находят коммерческих арендаторов. "
+        f"**{_floor1_pct}% арендаторов — 1-й этаж, {_floor_bsmt_pct}% — подвал.**  \n"
+        "В подвалах — маркетплейсы, красота, медицина. "
+        "2-й этаж и выше практически не сдаются. "
         f"Медиана открытия — {_med_days} дней после покупки, "
         f"{_fast_pct}% открываются в первые 3 месяца."
     )
