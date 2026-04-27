@@ -314,7 +314,7 @@ def main() -> None:
                     "after_days":    after_days,
                 })
 
-        # Shared-building deduplication
+        # Shared-building detection: flag lots that share the same best candidate
         best_mid_by_lot:  dict[str, str] = {}
         addr_norm_by_lot: dict[str, str] = {}
         for lot_id, cands in candidates_by_lot.items():
@@ -336,8 +336,7 @@ def main() -> None:
 
             best_mid  = best_mid_by_lot[lot_id]
             addr_norm = addr_norm_by_lot[lot_id]
-            if shared[(addr_norm, best_mid)] > 1:
-                conf = "low"
+            is_multilot = shared[(addr_norm, best_mid)] > 1
 
             companies = [c["org"].get("name", "") for c in cands]
             usages    = [usage_str(c["org"]) for c in cands]
@@ -363,6 +362,7 @@ def main() -> None:
                 "lot_address_norm":     addr_norm,
                 "candidate_count":      str(len(cands)),
                 "confidence":           conf,
+                "multilot_building":    "1" if is_multilot else "",
                 "likely_company":       likely_company,
                 "likely_usage":         likely_usage,
                 "company_candidates_preview": compact(companies, 5),
@@ -392,7 +392,7 @@ def main() -> None:
         "prev_snapshot_label", "snapshot_label", "snapshot_date",
         "days_after_purchase",
         "lot_address", "lot_address_norm",
-        "candidate_count", "confidence",
+        "candidate_count", "confidence", "multilot_building",
         "likely_company", "likely_usage",
         "company_candidates_preview", "usage_candidates_preview",
     ]

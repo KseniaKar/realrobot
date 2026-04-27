@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-26-retailstreets-none-fix-v3"
+APP_BUILD = "2026-04-27-multilot-flag-v1"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -208,6 +208,7 @@ def load_data() -> pd.DataFrame:
         "match_confidence",
         "match_after_days",
         "match_time_window",
+        "multilot_building",
     ]:
         if col not in df.columns:
             df[col] = ""
@@ -242,6 +243,11 @@ def load_data() -> pd.DataFrame:
         df["rs_chains_count"] = pd.NA
     df["rs_top_category"] = df["rs_top_category"].fillna("")
     df["rs_top_chains"] = df["rs_top_chains"].fillna("")
+
+    # Вычисляем multilot прямо из данных — не ждём перезапуска pipeline
+    _addr_col = "address_norm" if "address_norm" in df.columns else "адрес"
+    addr_counts = df.groupby(_addr_col)[_addr_col].transform("count")
+    df["multilot_building"] = (addr_counts > 1).map({True: "1", False: ""})
 
     return df
 
@@ -349,6 +355,8 @@ for _, row in map_df.iterrows():
             <tr><td><b>Дата торгов:</b></td><td>{_sale_date}</td></tr>"""
     else:
         _match_timing_rows = ""
+    _is_multilot = str(row.get("multilot_building", "")).strip() == "1"
+    _multilot_row = '<tr><td colspan="2" style="color:#b45309;font-size:11px;">⚠ Здание с несколькими лотами — арендатор предположительный</td></tr>' if _is_multilot else ""
     popup_html = f"""
     <div style="font-family: Arial, sans-serif; min-width: 340px;">
         <h4 style="margin: 0 0 8px; color: #333;">Лот #{row['номер_лота']}</h4>
@@ -364,6 +372,7 @@ for _, row in map_df.iterrows():
             <tr><td><b>Арендатор:</b></td><td>{likely_company}</td></tr>
             <tr><td><b>Категория:</b></td><td>{likely_usage}</td></tr>
             <tr><td><b>Качество матча:</b></td><td>{row['match_confidence_label']}</td></tr>
+            {_multilot_row}
             {f'<tr><td><b>Подходящая категория:</b></td><td>{safe_text(row["rs_top_category"])}</td></tr><tr><td><b>Подходящие сети:</b></td><td style="font-size:11px;">{safe_text(str(row["rs_top_chains"])[:120])}</td></tr>' if not likely_company and row.get("rs_top_category") else ''}
         </table>
         <br><a href="{row['url']}" target="_blank" style="color: #1a73e8;">→ Подробнее на investmoscow.ru</a>
@@ -416,6 +425,7 @@ display_df = filtered.copy()
 display_df["ссылка_на_лот"] = display_df["url"].fillna("")
 display_cols = [
     "match_confidence_label",
+    "multilot_building",
     "match_after_days",
     "likely_company",
     "likely_usage",
@@ -435,6 +445,9 @@ display_cols = [
     "форма_проведения",
     "год_торгов",
 ]
+display_df["multilot_building"] = display_df["multilot_building"].apply(
+    lambda v: "Да" if str(v).strip() == "1" else ""
+)
 st.dataframe(
     display_df[display_cols],
     use_container_width=True,
@@ -442,6 +455,7 @@ st.dataframe(
     hide_index=True,
     column_config={
         "match_confidence_label": "Совпадение",
+        "multilot_building": "Мультилот",
         "match_after_days": st.column_config.NumberColumn("Дней до матча", format="%d"),
         "likely_company": "Арендатор",
         "likely_usage": "Категория",

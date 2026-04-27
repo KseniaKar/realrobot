@@ -41,6 +41,7 @@ MATCH_FIELDS = [
     "likely_company",
     "likely_usage",
     "match_confidence",
+    "multilot_building",
     "company_candidates_preview",
     "usage_candidates_preview",
 ]
@@ -69,6 +70,7 @@ def apply_match(row: dict, match: dict, time_window: str) -> None:
     row["likely_company"]              = match.get("likely_company", "")
     row["likely_usage"]                = match.get("likely_usage", "")
     row["match_confidence"]            = match.get("confidence", "")
+    row["multilot_building"]           = match.get("multilot_building", "")
     row["company_candidates_preview"]  = match.get("company_candidates_preview", "")
     row["usage_candidates_preview"]    = match.get("usage_candidates_preview", "")
 
