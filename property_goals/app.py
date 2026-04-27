@@ -1,4 +1,5 @@
 from pathlib import Path
+import io
 import json
 import re
 
@@ -13,7 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-27-analytics-v10"
+APP_BUILD = "2026-04-27-excel-v11"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -54,16 +55,120 @@ FLOOR_ORDER = [
     "Не указано",
 ]
 
+# Колонки Excel: (ключ в df, заголовок, ширина столбца)
+_EXCEL_COLS = [
+    ("match_confidence_label", "Совпадение",          14),
+    ("multilot_building",      "Мультилот",            10),
+    ("match_after_days",       "Дней до матча",        14),
+    ("likely_company",         "Арендатор",            24),
+    ("likely_usage",           "Категория",            22),
+    ("сейчас_в_здании",        "Сейчас в здании",      36),
+    ("были_в_здании",          "Были в здании",        36),
+    ("история_бизнесов",       "История здания",       46),
+    ("rs_top_category",        "Подходящая категория", 22),
+    ("rs_top_chains",          "Подходящие сети",      36),
+    ("превышение_цены_%",      "Превышение, %",        14),
+    ("начальная_цена_млн",     "Старт, млн ₽",         14),
+    ("итоговая_цена_млн",      "Итог, млн ₽",          14),
+    ("участники",              "Участники",            12),
+    ("ссылка_на_лот",          "Ссылка",               15),
+    ("номер_лота",             "Номер лота",           12),
+    ("адрес",                  "Адрес",                42),
+    ("площадь_м²",             "Площадь, м²",          12),
+    ("этаж_норм",              "Этаж",                 16),
+    ("тип_входа",              "Тип входа",            24),
+    ("метро",                  "Метро",                28),
+    ("округ_код",              "Округ",                 8),
+    ("форма_проведения",       "Форма проведения",     24),
+    ("год_торгов",             "Год",                   6),
+]
+_PIPE_COLS = {"сейчас_в_здании", "были_в_здании", "история_бизнесов", "rs_top_chains"}
 
-def normalize_floor(value: object) -> str:
-    if pd.isna(value):
-        return "Не указано"
-    raw = str(value).replace("\xa0", " ").strip()
-    if not raw:
-        return "Не указано"
-    lower = raw.lower()
-    if "," in lower or " и выше" in lower:
-        return "Многоуровневый"
+
+def build_excel(filtered_df: pd.DataFrame) -> bytes:
+    import xlsxwriter
+
+    display = filtered_df.copy()
+    display["ссылка_на_лот"] = display["url"].fillna("")
+    display["multilot_building"] = display["multilot_building"].apply(
+        lambda v: "Да" if str(v).strip() == "1" else ""
+    )
+    for col in _PIPE_COLS:
+        if col in display.columns:
+            display[col] = display[col].fillna("").astype(str).str.replace("|", "\n", regex=False)
+
+    cols_exist = [(c, h, w) for c, h, w in _EXCEL_COLS if c in display.columns]
+    col_keys    = [c for c, h, w in cols_exist]
+    col_headers = [h for c, h, w in cols_exist]
+    col_widths  = [w for c, h, w in cols_exist]
+
+    is_matched = display["match_confidence"].fillna("").str.strip() != ""
+    sheets = [
+        ("Все",               display),
+        ("Арендатор найден",  display[is_matched]),
+        ("Не найден",         display[~is_matched]),
+    ]
+
+    buf = io.BytesIO()
+    wb  = xlsxwriter.Workbook(buf, {"in_memory": True})
+
+    hdr_fmt = wb.add_format({
+        "bold": True, "bg_color": "#2563EB", "font_color": "#FFFFFF",
+        "border": 1, "align": "center", "valign": "vcenter",
+        "text_wrap": True, "font_size": 10,
+    })
+    cell_fmt = wb.add_format({"border": 1, "valign": "top", "text_wrap": True, "font_size": 10})
+    num1_fmt = wb.add_format({"border": 1, "valign": "top", "num_format": "0.0",              "font_size": 10})
+    int_fmt  = wb.add_format({"border": 1, "valign": "top", "num_format": "0",                "font_size": 10})
+    pct_fmt  = wb.add_format({"border": 1, "valign": "top", "num_format": '+0.0;-0.0;"0.0"',  "font_size": 10})
+    url_fmt  = wb.add_format({"border": 1, "valign": "top", "font_color": "#1a73e8",
+                               "underline": True, "font_size": 10})
+
+    _num_cols  = {"начальная_цена_млн", "итоговая_цена_млн", "площадь_м²"}
+    _int_cols  = {"match_after_days", "участники", "год_торгов", "номер_лота"}
+    _pct_cols  = {"превышение_цены_%"}
+
+    for sheet_name, df_sheet in sheets:
+        ws = wb.add_worksheet(sheet_name)
+        ws.set_row(0, 32)
+        ws.freeze_panes(1, 0)
+
+        for ci, (col_key, header, width) in enumerate(cols_exist):
+            ws.set_column(ci, ci, width)
+            ws.write(0, ci, header, hdr_fmt)
+
+        for ri, (_, row) in enumerate(df_sheet[col_keys].iterrows(), start=1):
+            for ci, col_key in enumerate(col_keys):
+                val = row[col_key]
+                na  = pd.isna(val) or str(val).strip() in ("", "nan", "None")
+                if col_key == "ссылка_на_лот" and not na and str(val).startswith("http"):
+                    ws.write_url(ri, ci, str(val), url_fmt, "Открыть")
+                elif col_key in _num_cols and not na:
+                    try:    ws.write_number(ri, ci, float(val), num1_fmt)
+                    except: ws.write(ri, ci, "", cell_fmt)
+                elif col_key in _pct_cols and not na:
+                    try:    ws.write_number(ri, ci, float(val), pct_fmt)
+                    except: ws.write(ri, ci, "", cell_fmt)
+                elif col_key in _int_cols and not na:
+                    try:    ws.write_number(ri, ci, int(float(val)), int_fmt)
+                    except: ws.write(ri, ci, "", cell_fmt)
+                elif na:
+                    ws.write(ri, ci, "", cell_fmt)
+                else:
+                    ws.write(ri, ci, str(val), cell_fmt)
+
+        if len(df_sheet) > 0:
+            ws.autofilter(0, 0, len(df_sheet), len(col_keys) - 1)
+
+    wb.close()
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def _normalize_floor_single(raw: str) -> str:
+    lower = raw.strip().lower()
+    if not lower:
+        return ""
     if "подвал" in lower or re.fullmatch(r"-\d+", lower):
         return "Подвал"
     if "цок" in lower:
@@ -78,15 +183,42 @@ def normalize_floor(value: object) -> str:
         return "Техэтаж"
     if "мезонин" in lower:
         return "Мезонин"
-    match = re.search(r"\d+", lower)
-    if match:
-        floor_num = int(match.group())
-        if floor_num == 0:
+    m = re.search(r"\d+", lower)
+    if m:
+        n = int(m.group())
+        if n == 0:
             return "0 этаж"
-        if floor_num >= 5:
+        if n >= 5:
             return "5+ этаж"
-        return f"{floor_num} этаж"
-    return raw
+        return f"{n} этаж"
+    return raw.strip()
+
+
+_BELOW_GROUND = {"Подвал", "Цоколь"}
+
+
+def normalize_floor(value: object) -> str:
+    if pd.isna(value):
+        return "Не указано"
+    raw = str(value).replace("\xa0", " ").strip()
+    if not raw:
+        return "Не указано"
+    lower = raw.lower()
+    if " и выше" in lower:
+        return "Многоуровневый"
+    if "," not in lower:
+        return _normalize_floor_single(raw)
+    parts = [_normalize_floor_single(p) for p in raw.split(",") if p.strip()]
+    parts = [p for p in parts if p]
+    unique = set(parts)
+    if len(unique) == 1:
+        return next(iter(unique))
+    # "Подвал, 0" и "Цоколь, 0": "0" — номер уровня, а не отдельный этаж
+    if unique & _BELOW_GROUND and "0 этаж" in unique:
+        unique -= {"0 этаж"}
+        if len(unique) == 1:
+            return next(iter(unique))
+    return "Многоуровневый"
 
 
 def extract_okrug(address: object) -> str:
@@ -194,6 +326,19 @@ def load_data() -> pd.DataFrame:
         df = df.merge(proto, left_on="номер_лота", right_on="lot_id", how="left")
     else:
         df["participants_count"] = np.nan
+
+    # NSI-коды в тип_входа — декодируем в читаемые метки
+    _NSI_ENTRANCE = {
+        "nsi:1032:103201":  "Отдельный",
+        "nsi:1032:1032004": "Вход через подъезд",
+        "nsi:1032:1032005": "Вход через места общего пользования",
+        "nsi:1032:1032006": "Вход через подъезд",
+        "nsi:1032:9001302": "",
+    }
+    if "тип_входа" in df.columns:
+        df["тип_входа"] = df["тип_входа"].apply(
+            lambda v: _NSI_ENTRANCE.get(v, "Не указано") if isinstance(v, str) and v.startswith("nsi:") else v
+        )
 
     df["округ"] = df["адрес"].apply(extract_okrug)
     df["округ_код"] = df["округ"].map(OKRUG_SHORT).fillna("Другое")
@@ -459,8 +604,13 @@ with legend_right:
 st.subheader("Данные")
 st.caption(f"Показано {len(filtered)} из {len(df)} записей")
 
-csv_data = filtered.to_csv(index=False, encoding="utf-8-sig")
-st.download_button("Скачать CSV", data=csv_data, file_name="property_goals_filtered.csv", mime="text/csv")
+excel_data = build_excel(filtered)
+st.download_button(
+    "Скачать Excel",
+    data=excel_data,
+    file_name="property_goals_filtered.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+)
 
 display_df = filtered.copy()
 display_df["ссылка_на_лот"] = display_df["url"].fillna("")

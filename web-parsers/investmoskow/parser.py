@@ -207,9 +207,11 @@ def parse_tender(tender, page_data=None):
     entrance_codes = tender.get("entranceTypeCodes", [])
     if entrance_codes:
         mapping = {
-            "nsi:1032:103201": "Отдельный",
+            "nsi:1032:103201":  "Отдельный",                          # опечатка API вместо 1032001
+            "nsi:1032:1032004": "Вход через подъезд",
             "nsi:1032:1032005": "Вход через места общего пользования",
             "nsi:1032:1032006": "Вход через подъезд",
+            "nsi:1032:9001302": "",                                    # сайт не показывает тип входа
         }
         тип_входа = mapping.get(entrance_codes[0], entrance_codes[0])
 
