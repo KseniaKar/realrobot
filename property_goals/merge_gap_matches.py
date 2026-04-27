@@ -89,6 +89,11 @@ def main() -> None:
         fieldnames = list(reader.fieldnames or [])
         rows       = list(reader)
 
+    if "multilot_building" not in fieldnames:
+        fieldnames.append("multilot_building")
+        for row in rows:
+            row.setdefault("multilot_building", "")
+
     added    = 0
     upgraded = 0
     cleared  = 0
