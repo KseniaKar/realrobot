@@ -637,6 +637,16 @@ _auc_match_pct = int(df[~_pub]["match_confidence"].fillna("").str.strip().ne("")
 _med_days = int(_days_valid.median())
 _fast_pct = int((_days_valid < 90).mean() * 100)
 
+_hist_col = "история_бизнесов"
+_hist_sizes = df[_hist_col].fillna("").apply(
+    lambda h: len([e for e in h.split("|") if e.strip()])
+)
+_has_hist = _hist_sizes > 0
+_matched_mask = df["match_confidence"].fillna("").str.strip() != ""
+_hist_med_matched   = int(_hist_sizes[_matched_mask & _has_hist].median())
+_hist_med_unmatched = int(_hist_sizes[~_matched_mask & _has_hist].median())
+_stable_n = int((_hist_sizes == 1).sum())
+
 with i1:
     st.info(
         f"**Треть помещений — пункты выдачи маркетплейсов.**  \n"
@@ -664,6 +674,23 @@ with i2:
         "2-й этаж и выше практически не сдаются. "
         f"Медиана открытия — {_med_days} дней после покупки, "
         f"{_fast_pct}% открываются в первые 3 месяца."
+    )
+
+st.divider()
+st.markdown("#### История помещений")
+ih1, ih2 = st.columns(2)
+with ih1:
+    st.info(
+        f"**«Горячие» адреса труднее закрепить.**  \n"
+        f"У лотов с найденным арендатором медиана истории — {_hist_med_matched} бизнесов за 6 лет, "
+        f"у лотов без матча — {_hist_med_unmatched}. "
+        "Чем больше сменилось арендаторов до покупки, тем сложнее остановиться на одном."
+    )
+with ih2:
+    st.info(
+        f"**{_stable_n} адресов — один бизнес за всё время.**  \n"
+        "Якорные арендаторы, которые не уходят: Wildberries, Винлаб, Fix Price, барбершопы. "
+        "Это «закрытые» помещения — покупатель сразу нашёл долгосрочного арендатора."
     )
 
 # ── Match by year ────────────────────────────────────────────────────────────
