@@ -572,12 +572,12 @@ k3.metric("Медиана открытия", f"{int(_days_valid.median())} дн�
 k4.metric("1-й этаж", f"{_floor1_pct}%", f"подвал: {_floor_bsmt_pct}%")
 
 # ── Charts ────────────────────────────────────────────────────────────────────
-ch1, ch2, ch3 = st.columns(3)
+ch1, ch2 = st.columns(2)
 
 with ch1:
     st.markdown("**Топ компаний-арендаторов** (уникальных адресов)")
     _co_counts = _uniq["company"].value_counts().head(10)
-    fig, ax = plt.subplots(figsize=(5, 3))
+    fig, ax = plt.subplots(figsize=(6, 3))
     ax.barh(_co_counts.index[::-1], _co_counts.values[::-1])
     ax.set_xlabel("адресов")
     plt.tight_layout()
@@ -587,29 +587,9 @@ with ch1:
 with ch2:
     st.markdown("**Топ категорий** (уникальных адресов)")
     _cat_counts = _uniq["category"].value_counts().head(10)
-    fig, ax = plt.subplots(figsize=(5, 3))
+    fig, ax = plt.subplots(figsize=(6, 3))
     ax.barh(_cat_counts.index[::-1], _cat_counts.values[::-1])
     ax.set_xlabel("адресов")
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)
-
-with ch3:
-    st.markdown("**Этаж арендатора**")
-    _FLOOR_LABELS = ["1 этаж", "Подвал", "Многоуровневый", "2 этаж", "3 этаж", "4 этаж", "Прочие"]
-    _floor_vc = _co_df["floor_norm"].value_counts()
-    _floor_other = _floor_vc[~_floor_vc.index.isin(_FLOOR_LABELS[:-1])].sum()
-    _floor_plot = {
-        lbl: _floor_vc.get(lbl, 0)
-        for lbl in _FLOOR_LABELS[:-1]
-    }
-    _floor_plot["Прочие"] = _floor_other
-    _floor_plot = {k: v for k, v in _floor_plot.items() if v > 0}
-    fig, ax = plt.subplots(figsize=(5, 3))
-    labels = list(_floor_plot.keys())[::-1]
-    vals   = list(_floor_plot.values())[::-1]
-    ax.barh(labels, vals)
-    ax.set_xlabel("лотов")
     plt.tight_layout()
     st.pyplot(fig)
     plt.close(fig)
