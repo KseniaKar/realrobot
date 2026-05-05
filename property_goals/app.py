@@ -14,7 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-04-27-excel-v11"
+APP_BUILD = "2026-05-05-existing-tenant-v12"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -265,6 +265,8 @@ def format_match_confidence(conf: object, preview: object = None) -> str:
         if n <= 1:
             return "Вероятный"
         return f"{n} варианта" if n in (2, 3, 4) else f"{n} вариантов"
+    if c == "existing_tenant":
+        return "Действующий арендатор"
     return "Нет"
 
 
@@ -386,6 +388,8 @@ def load_data() -> pd.DataFrame:
         if tw.startswith("first_after_snapshot_"):
             snapshot = tw.replace("first_after_snapshot_", "")
             return f"Данные появления бизнеса за {snapshot}"
+        if tw == "existing_tenant_buyout":
+            return "Действующий арендатор (был до и после продажи)"
         return "Базовые (180-365 дней после покупки)"
 
     df["match_source_label"] = df.apply(_match_source, axis=1)
@@ -425,7 +429,7 @@ st.sidebar.title("Фильтры")
 all_years = sorted(df["год_торгов"].dropna().unique())
 selected_years = st.sidebar.multiselect("Год торгов", all_years, default=all_years)
 
-_conf_order = ["Высокое", "Вероятный", "2 варианта", "3 варианта", "4 варианта", "5 вариантов"]
+_conf_order = ["Высокое", "Вероятный", "2 варианта", "3 варианта", "4 варианта", "5 вариантов", "Действующий арендатор"]
 all_match_conf = [c for c in _conf_order if c in set(df["match_confidence_label"].dropna().unique())]
 selected_match_conf = st.sidebar.multiselect("Качество совпадения", all_match_conf, default=all_match_conf)
 
@@ -527,11 +531,14 @@ for _, row in map_df.iterrows():
     _is_multilot = str(row.get("multilot_building", "")).strip() == "1"
     _multilot_row = '<tr><td colspan="2" style="color:#b45309;font-size:11px;">⚠ Здание с несколькими лотами — арендатор предположительный</td></tr>' if _is_multilot else ""
     _conf_raw = str(row.get("match_confidence", "")).strip().lower()
-    if _conf_raw == "medium":
+    if _conf_raw in ("medium", "existing_tenant"):
         _candidates = [c.strip() for c in str(row.get("company_candidates_preview", "")).split("|") if c.strip()]
         _usages = [u.strip() for u in str(row.get("usage_candidates_preview", "")).split("|") if u.strip()]
         _n = len(_candidates)
-        _tenant_label = f"Варианты арендатора ({_n})" if _n > 1 else "Варианты арендатора"
+        if _conf_raw == "existing_tenant":
+            _tenant_label = "Действующий арендатор"
+        else:
+            _tenant_label = f"Варианты арендатора ({_n})" if _n > 1 else "Варианты арендатора"
         _tenant_value = "<br>".join(f"· {c}" for c in _candidates) if _candidates else likely_company
         _usage_label = "Варианты категории"
         _usage_value = "<br>".join(f"· {u}" for u in _usages) if _usages else likely_usage
