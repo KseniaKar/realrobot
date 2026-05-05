@@ -1,12 +1,13 @@
 """
-Re-validate the 185 existing matches using retailstreets area requirements.
+Re-validate matched lots using retailstreets area requirements and floor rules.
 
 For each matched lot:
   1. Parse all candidates from company_candidates_preview / usage_candidates_preview
   2. Drop candidates that are implausible types (vending devices, government, non-tenants)
   3. Drop candidates whose lot area is absurdly outside the retailstreets range for that category
-  4. Re-select likely_company from remaining valid candidates
-  5. If no valid candidates remain — clear the match
+  4. Drop candidates where chain requires 1st floor but lot is pure basement
+  5. Re-select likely_company from remaining valid candidates
+  6. If no valid candidates remain — clear the match
 
 Outputs:
   matches/revalidation_report.csv  — per-lot summary of changes
@@ -16,6 +17,7 @@ Outputs:
 from __future__ import annotations
 
 import csv
+import re
 import shutil
 from pathlib import Path
 
@@ -113,6 +115,40 @@ def build_rs_area_limits(chains_path: Path) -> dict[str, tuple[float, float]]:
     return limits
 
 
+def build_first_floor_chains(chains_path: Path) -> set[str]:
+    """Returns lowercase chain names that explicitly require 1st floor (not basement)."""
+    chains: set[str] = set()
+    with chains_path.open("r", encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            fl = (row.get("floor") or "").lower().strip()
+            if not fl:
+                continue
+            # Skip chains that accept basement or цоколь
+            if "подвал" in fl or "цоколь" in fl:
+                continue
+            # Accept if floor mentions 1st floor
+            if any(x in fl for x in ("1 этаж", "первый этаж", "1-ом", "1-й", "1-й", "1 эт")):
+                chains.add((row.get("name") or "").lower().strip())
+    return chains
+
+
+def is_pure_basement(floor_str: str) -> bool:
+    """True if lot floor is basement only (no 1st+ floor access)."""
+    fl = floor_str.lower()
+    if "подвал" not in fl:
+        return False
+    return not re.search(r"[1-9]", fl)
+
+
+def floor_mismatch(company: str, lot_floor: str, first_floor_chains: set[str]) -> bool:
+    """True if company requires 1st floor but lot is pure basement."""
+    if not is_pure_basement(lot_floor):
+        return False
+    # Normalize "&" <-> " и " so "Красное&Белое" matches chain "красное и белое"
+    comp_lower = company.lower().replace("&", " и ").replace("  ", " ")
+    return any(chain in comp_lower for chain in first_floor_chains if chain)
+
+
 def usage_to_rs_category(usage: str) -> str | None:
     lower = usage.lower()
     for keyword, cat in USAGE_TO_RS_CATEGORY:
@@ -149,13 +185,16 @@ def reselect(
     usage_list: list[str],
     lot_area: float | None,
     rs_limits: dict,
+    lot_floor: str = "",
+    first_floor_chains: set[str] | None = None,
 ) -> tuple[list[str], list[str], list[str], list[str]]:
     """
     Returns (valid_companies, valid_usages, dropped_companies, drop_reasons).
     """
     valid_c, valid_u, dropped_c, reasons = [], [], [], []
+    if first_floor_chains is None:
+        first_floor_chains = set()
 
-    pairs = list(zip(company_list, usage_list))
     # Pad if lists differ in length (shouldn't normally happen)
     for i in range(max(len(company_list), len(usage_list))):
         c = company_list[i] if i < len(company_list) else ""
@@ -173,6 +212,11 @@ def reselect(
             reasons.append(f"AREA_MISMATCH({lot_area:.0f}m² vs {hard_min:.0f}-{hard_max:.0f} for {rs_cat}): {c}")
             continue
 
+        if floor_mismatch(c, lot_floor, first_floor_chains):
+            dropped_c.append(c)
+            reasons.append(f"FLOOR_MISMATCH(requires 1st floor, lot={lot_floor!r}): {c}")
+            continue
+
         valid_c.append(c)
         valid_u.append(u)
 
@@ -186,6 +230,8 @@ def compact(items: list[str], limit: int = 5) -> str:
 def main() -> None:
     rs_limits = build_rs_area_limits(CHAINS_PATH)
     print("Retailstreets area limits loaded:", len(rs_limits), "categories")
+    first_floor_chains = build_first_floor_chains(CHAINS_PATH)
+    print("1st-floor-only chains loaded:", len(first_floor_chains))
 
     # Backup original
     if not BACKUP_PATH.exists():
@@ -226,7 +272,11 @@ def main() -> None:
         if not usage_list:
             usage_list = parse_pipe(orig_usage)
 
-        valid_c, valid_u, dropped_c, reasons = reselect(company_list, usage_list, lot_area, rs_limits)
+        lot_floor = (row.get("этаж") or "").strip()
+        valid_c, valid_u, dropped_c, reasons = reselect(
+            company_list, usage_list, lot_area, rs_limits,
+            lot_floor=lot_floor, first_floor_chains=first_floor_chains,
+        )
 
         if not dropped_c:
             unchanged += 1

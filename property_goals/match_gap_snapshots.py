@@ -1,7 +1,7 @@
 """
 Match unmatched (and first_after_snapshot_2025-09) lots against the new gap snapshots.
 
-For each snapshot pair (prev →curr) in chronological order, find businesses that
+For each snapshot pair (prev ->curr) in chronological order, find businesses that
 are NEW in curr (not present in prev) and appear near a lot address within 250 m.
 For each lot, keep only the best match (smallest after_days + best confidence).
 
@@ -141,14 +141,35 @@ def normalize_company_name(raw_name: str) -> str:
     return BRAND_ALIASES.get(name.lower(), name)
 
 
+_K_DIGIT_RE = re.compile(r"\bк(\d+)\b")
+_ST_DIGIT_RE = re.compile(r"\bст(\d+[а-яё]?)\b")
+_STREET_TYPE_RE = re.compile(
+    r"\b(?:улица|переулок|проспект|бульвар|набережная|площадь|шоссе|тупик|проезд|аллея)\b"
+)
+
+
+def canon_addr(addr: str) -> str:
+    """Canonical address for lot↔snapshot matching.
+
+    Handles format mismatches between investmoscow lots and 2GIS snapshots:
+    - "к3" (2GIS, no space) -> "корп 3" (investmoscow style)
+    - "ст1" (2GIS abbreviation) -> "стр 1" (investmoscow строение style)
+    - "улица" present in lots and newer snapshots but absent in 2022-era snapshots
+    """
+    addr = _K_DIGIT_RE.sub(r"корп \1", addr)
+    addr = _ST_DIGIT_RE.sub(r"стр \1", addr)
+    addr = _STREET_TYPE_RE.sub("", addr)
+    return re.sub(r" {2,}", " ", addr).strip()
+
+
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
-def month_end(label: str) →date:
+def month_end(label: str) ->date:
     year, month = map(int, label.split("-"))
     return date(year, month, monthrange(year, month)[1])
 
 
-def parse_lot_date(value: str) →date | None:
+def parse_lot_date(value: str) ->date | None:
     value = (value or "").strip()
     if not value:
         return None
@@ -162,14 +183,14 @@ def parse_lot_date(value: str) →date | None:
         return None
 
 
-def to_float(value: object) →float | None:
+def to_float(value: object) ->float | None:
     try:
         return float(str(value).strip().replace(",", "."))
     except Exception:
         return None
 
 
-def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) →float:
+def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) ->float:
     R = 6371000.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -189,15 +210,15 @@ def usage_str(row: dict) -> str:
     rubric    = (row.get("rubric")    or "").strip()
     subrubric = (row.get("subrubric") or "").strip()
     if rubric and subrubric:
-        return f"{rubric} →{subrubric}"
+        return f"{rubric} ->{subrubric}"
     return rubric or subrubric
 
 
-def is_implausible(u: str) →bool:
+def is_implausible(u: str) ->bool:
     return any(s in u for s in IMPLAUSIBLE_SUBSTRINGS)
 
 
-def is_implausible_name(name: str) →bool:
+def is_implausible_name(name: str) ->bool:
     lower = name.lower()
     if any(s.lower() in lower for s in IMPLAUSIBLE_NAME_SUBSTRINGS):
         return True
@@ -228,7 +249,7 @@ def compact(values: list[str], limit: int = 5) -> str:
 
 # ── Data loading ──────────────────────────────────────────────────────────────
 
-def load_existing_matches() →dict[str, str]:
+def load_existing_matches() ->dict[str, str]:
     """Returns {lot_id: match_time_window} for lots that already have a match."""
     result: dict[str, str] = {}
     with ENRICHED_PATH.open("r", encoding="utf-8-sig", newline="") as f:
@@ -241,7 +262,7 @@ def load_existing_matches() →dict[str, str]:
     return result
 
 
-def load_target_lots(existing: dict[str, str]) →list[dict]:
+def load_target_lots(existing: dict[str, str]) ->list[dict]:
     """Lots eligible for gap matching: unmatched or first_after_snapshot (upgradeable)."""
     SKIP_WINDOWS = {"180-365d", "0-180d_recent_2026-04"}
     lots: list[dict] = []
@@ -279,7 +300,7 @@ def _composite_key(row: dict) -> str:
     return f"{addr}|{name}"
 
 
-def load_snapshot_keys(label: str) →set[str]:
+def load_snapshot_keys(label: str) ->set[str]:
     """Returns composite address_norm|name keys for all orgs in the snapshot."""
     path = MOSCOW_DIR / f"{label}.with_norm.csv"
     if not path.exists():
@@ -293,7 +314,7 @@ def load_snapshot_keys(label: str) →set[str]:
     return keys
 
 
-def load_new_orgs(curr_label: str, prev_keys: set[str]) →dict[str, list[dict]]:
+def load_new_orgs(curr_label: str, prev_keys: set[str]) ->dict[str, list[dict]]:
     """Returns {address_norm: [org]} for organisations new in curr_label vs prev."""
     path = MOSCOW_DIR / f"{curr_label}.with_norm.csv"
     if not path.exists():
@@ -305,7 +326,7 @@ def load_new_orgs(curr_label: str, prev_keys: set[str]) →dict[str, list[dict]]
             key = _composite_key(row)
             if key and key in prev_keys:
                 continue  # was already present in prev snapshot
-            addr = (row.get("address_norm") or "").strip()
+            addr = canon_addr((row.get("address_norm") or "").strip())
             if not addr:
                 continue
             lat = to_float(row.get("lat"))
@@ -325,12 +346,12 @@ def main() -> None:
     lots     = load_target_lots(existing)
     print(f"Target lots (unmatched + first_after_snapshot upgradeable): {len(lots)}")
 
-    # best_by_lot: lot_id →best match summary dict
+    # best_by_lot: lot_id ->best match summary dict
     best_by_lot: dict[str, dict] = {}
 
     for prev_label, curr_label in SNAPSHOT_PAIRS:
         curr_date = month_end(curr_label)
-        print(f"\n{prev_label} →{curr_label}  (snapshot date {curr_date})")
+        print(f"\n{prev_label} ->{curr_label}  (snapshot date {curr_date})")
 
         prev_ids = load_snapshot_keys(prev_label)
         print(f"  prev keys loaded: {len(prev_ids)}")
@@ -351,7 +372,7 @@ def main() -> None:
             if after_days < MIN_AFTER_DAYS or after_days > MAX_AFTER_DAYS:
                 continue
 
-            addr  = (lot.get("address_norm") or "").strip()
+            addr  = canon_addr((lot.get("address_norm") or "").strip())
             orgs  = new_orgs.get(addr, [])
             if not orgs:
                 continue

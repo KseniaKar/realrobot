@@ -145,6 +145,20 @@ def to_float(v):
         return None
 
 
+_K_DIGIT_RE = re.compile(r"\bк(\d+)\b")
+_ST_DIGIT_RE = re.compile(r"\bст(\d+[а-яё]?)\b")
+_STREET_TYPE_RE = re.compile(
+    r"\b(?:улица|переулок|проспект|бульвар|набережная|площадь|шоссе|тупик|проезд|аллея)\b"
+)
+
+
+def canon_addr(addr: str) -> str:
+    addr = _K_DIGIT_RE.sub(r"корп \1", addr)
+    addr = _ST_DIGIT_RE.sub(r"стр \1", addr)
+    addr = _STREET_TYPE_RE.sub("", addr)
+    return re.sub(r" {2,}", " ", addr).strip()
+
+
 def usage_str(row):
     rubric = (row.get("rubric") or "").strip()
     sub = (row.get("subrubric") or "").strip()
@@ -170,7 +184,7 @@ def main():
     with LOTS_SRC.open(encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
             lid = str(row.get("номер_лота", "")).strip()
-            addr = (row.get("address_norm") or "").strip()
+            addr = canon_addr((row.get("address_norm") or "").strip())
             lat = to_float(row.get("latitude"))
             lon = to_float(row.get("longitude"))
             if not addr or lat is None or lon is None:
@@ -197,7 +211,7 @@ def main():
         by_addr: dict[str, list[dict]] = {}
         with snap_path.open(encoding="utf-8-sig", newline="") as f:
             for row in csv.DictReader(f):
-                addr = (row.get("address_norm") or "").strip()
+                addr = canon_addr((row.get("address_norm") or "").strip())
                 if addr and addr in lots_by_addr:
                     by_addr.setdefault(addr, []).append(row)
 
