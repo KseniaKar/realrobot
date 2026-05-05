@@ -14,7 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-05-05-existing-tenant-v12"
+APP_BUILD = "2026-05-05-existing-tenant-v13"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -102,11 +102,14 @@ def build_excel(filtered_df: pd.DataFrame) -> bytes:
     col_headers = [h for c, h, w in cols_exist]
     col_widths  = [w for c, h, w in cols_exist]
 
-    is_matched = display["match_confidence"].fillna("").str.strip() != ""
+    is_new     = display["match_confidence"].fillna("").str.strip().isin(["high", "medium", "low"])
+    is_tenant  = display["match_confidence"].fillna("").str.strip() == "existing_tenant"
+    is_matched = is_new | is_tenant
     sheets = [
-        ("Все",               display),
-        ("Арендатор найден",  display[is_matched]),
-        ("Не найден",         display[~is_matched]),
+        ("Все",                    display),
+        ("Новый бизнес",           display[is_new]),
+        ("Действующий арендатор",  display[is_tenant]),
+        ("Не найден",              display[~is_matched]),
     ]
 
     buf = io.BytesIO()
@@ -422,7 +425,19 @@ st.caption(f"Build: {APP_BUILD}")
 
 all_forms = sorted(df["форма_проведения"].dropna().unique())
 selected_form = st.selectbox("Форма проведения", ["Все"] + all_forms, index=0)
-selected_match = st.selectbox("Арендатор найден", ["Все", "Да", "Нет"], index=0)
+selected_match = st.selectbox(
+    "Арендатор найден",
+    ["Все", "Новый бизнес", "Действующий арендатор", "Любой найден", "Не найден"],
+    index=0,
+)
+_match_hints = {
+    "Новый бизнес": "Бизнес появился после покупки (в течение года). Прямой ответ «кто занял помещение».",
+    "Действующий арендатор": "Бизнес работал до продажи и остался после. Возможно, арендатор выкупил своё помещение — или сосед по зданию.",
+    "Любой найден": "Все лоты с любым типом совпадения.",
+    "Не найден": "Нет данных ни о новом бизнесе, ни о стабильном соседе.",
+}
+if selected_match in _match_hints:
+    st.caption(_match_hints[selected_match])
 
 st.sidebar.title("Фильтры")
 
@@ -471,7 +486,9 @@ filtered = df[
     & (df["match_confidence_label"].isin(selected_match_conf) if selected_match_conf != all_match_conf else True)
     & (
         True if selected_match == "Все"
-        else (df["match_confidence"].fillna("").str.strip() != "") if selected_match == "Да"
+        else (df["match_confidence"].fillna("").str.strip().isin(["high", "medium", "low"])) if selected_match == "Новый бизнес"
+        else (df["match_confidence"].fillna("").str.strip() == "existing_tenant") if selected_match == "Действующий арендатор"
+        else (df["match_confidence"].fillna("").str.strip() != "") if selected_match == "Любой найден"
         else (df["match_confidence"].fillna("").str.strip() == "")
     )
     & (df["площадь_м²"].between(area_range[0], area_range[1]) | df["площадь_м²"].isna())
