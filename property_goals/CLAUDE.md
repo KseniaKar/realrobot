@@ -41,13 +41,20 @@
 ## Pipeline матчинга
 
 ```bash
-# Основной pipeline (в этом порядке):
+# 1. Основной pipeline «новый бизнес» (в этом порядке):
 "/c/Program Files/Python39/python.exe" property_goals/match_gap_snapshots.py
 "/c/Program Files/Python39/python.exe" property_goals/merge_gap_matches.py
 "/c/Program Files/Python39/python.exe" property_goals/revalidate_matches.py
 
-# История зданий (отдельно, после pipeline):
+# 2. Детектор «выкуп действующим арендатором» (после шага 1):
+"/c/Program Files/Python39/python.exe" property_goals/detect_tenant_buyout.py
+"/c/Program Files/Python39/python.exe" property_goals/merge_tenant_buyout.py
+
+# 3. История зданий (после шагов 1–2):
 "/c/Program Files/Python39/python.exe" property_goals/build_business_history.py
+
+# 4. Рекомендации по сетям (независимо, можно после 1–3):
+"/c/Program Files/Python39/python.exe" property_goals/match_retailstreets.py
 ```
 
 ### Пары срезов (SNAPSHOT_PAIRS в match_gap_snapshots.py)
@@ -103,17 +110,25 @@ Wildberries/вайлдберриз → "Wildberries", OZON/озон → "Ozon", 
 
 История дедуплицируется по имени бренда (key = canonical.lower()) — одна запись на компанию независимо от смены рубрик в 2GIS.
 
-## Текущее состояние матчинга (апрель 2026)
+## Текущее состояние матчинга (май 2026)
 
 | Источник | Лотов |
 |----------|-------|
-| `gap_snapshot_*` (13 пар срезов) | ~712 |
+| `gap_snapshot_*` (13 пар срезов) | ~1434 |
 | `180-365d` baseline | ~57 |
 | `0-180d_recent_2026-04` | ~35 |
-| **Итого лотов** | **~794 (20.5%)** |
-| **Уникальных арендаторов** (дедупл. по компания+адрес) | **~534** |
+| **Итого «новый бизнес»** (high/medium/low) | **1526** |
+| `existing_tenant_buyout` | **1101** |
+| **ИТОГО** | **2627 (67.9%)** |
 
 **Примечание:** `first_after_snapshot_2025-09` (4-летнее окно) удалён как ненадёжный.
+
+### Два типа матчей
+
+| `match_confidence` | Значение |
+|--------------------|----------|
+| `high` / `medium` / `low` | Новый бизнес, появившийся после покупки (≤365 дней) |
+| `existing_tenant` | Бизнес работал ≥3 срезов ДО продажи и остался ≥1 срез ПОСЛЕ — возможный выкуп арендатора |
 
 ## Колонки истории зданий
 
@@ -159,6 +174,16 @@ Wildberries/вайлдберриз → "Wildberries", OZON/озон → "Ozon", 
 - Источник: `matches/property_retailstreets_summary.csv` — колонки `rs_top_category`, `rs_top_chains`, `rs_chains_count`
 - Генерация: `match_retailstreets.py`
 - В `app.py`: в таблице и попапе карты для unmatched лотов
+
+### Фильтр этажей в рекомендациях
+
+`retailstreets_requirements.csv` содержит колонку `floor` — цепочки с явным требованием 1-го этажа не рекомендуются для подвальных лотов.
+
+Вручную добавлены (2026-05-05, после проверки в 2GIS):
+- **КРАСНОЕ И БЕЛОЕ** → `floor = первый этаж`
+- **АРОМАТНЫЙ МИР** → `floor = первый этаж`
+
+После изменений `match_retailstreets.py` надо перезапустить.
 
 ## Запуск приложения
 
