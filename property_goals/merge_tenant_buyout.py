@@ -209,6 +209,12 @@ def main():
             skipped_matched += 1
             continue
 
+        # Skip lots with no 2GIS business history at this address —
+        # existing_tenant pattern requires evidence AT the lot's address,
+        # not just a nearby neighbor found by coordinate search.
+        if not row.get("история_бизнесов", "").strip():
+            continue
+
         candidates = candidates_by_lot.get(lot_id, [])
         if not candidates:
             continue
