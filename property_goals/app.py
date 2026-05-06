@@ -14,7 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-05-06-presale-reclassify-v14"
+APP_BUILD = "2026-05-06-school-zone-v15"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -369,6 +369,9 @@ def load_data() -> pd.DataFrame:
         "история_бизнесов",
         "сейчас_в_здании",
         "были_в_здании",
+        "near_school_100m",
+        "nearest_school_m",
+        "nearest_school_name",
     ]:
         if col not in df.columns:
             df[col] = ""
@@ -547,6 +550,13 @@ for _, row in map_df.iterrows():
     _gone_row    = _biz_list_row("Были в здании", safe_text(row.get("были_в_здании", "")))
     _is_multilot = str(row.get("multilot_building", "")).strip() == "1"
     _multilot_row = '<tr><td colspan="2" style="color:#b45309;font-size:11px;">⚠ Здание с несколькими лотами — арендатор предположительный</td></tr>' if _is_multilot else ""
+    _near_school = str(row.get("near_school_100m", "")).strip() == "1"
+    _school_dist = str(row.get("nearest_school_m", "")).strip()
+    _school_name = str(row.get("nearest_school_name", "")).strip()
+    _school_row = (
+        f'<tr><td colspan="2" style="color:#dc2626;font-size:11px;">🏫 В 100м — образовательное учреждение ({_school_dist}м): {_school_name[:60]}. '
+        f'Алкомаркеты запрещены (171-ФЗ).</td></tr>'
+    ) if _near_school else ""
     _conf_raw = str(row.get("match_confidence", "")).strip().lower()
     if _conf_raw in ("medium", "existing_tenant"):
         _candidates = [c.strip() for c in str(row.get("company_candidates_preview", "")).split("|") if c.strip()]
@@ -580,6 +590,7 @@ for _, row in map_df.iterrows():
             <tr><td valign="top"><b>{_usage_label}:</b></td><td>{_usage_value}</td></tr>
             <tr><td><b>Совпадение:</b></td><td>{row['match_confidence_label']}</td></tr>
             {_multilot_row}
+            {_school_row}
             {_now_row}
             {_gone_row}
             {_history_row}

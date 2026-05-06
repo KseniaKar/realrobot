@@ -91,6 +91,12 @@ def main():
         lots["площадь_м²"].astype(str).str.replace(",", ".").str.strip(), errors="coerce"
     )
     lots["_sep"] = lots["тип_входа"].fillna("").astype(str).str.lower().str.contains("отдельный")
+    lots["_near_school"] = lots["near_school_100m"].fillna("").astype(str).str.strip() == "1" \
+        if "near_school_100m" in lots.columns else False
+
+    # Алкомаркеты запрещены в 100м от образовательных учреждений (171-ФЗ, ст. 16)
+    ALCOHOL_CATEGORY = "Алкомаркеты"
+    chains["_is_alcohol"] = chains["category"].str.strip() == ALCOHOL_CATEGORY
 
     floor_flags = chains["floor"].apply(parse_chain_floor_flags)
     chains["_any_floor"] = floor_flags.apply(lambda x: x[0])
@@ -99,9 +105,9 @@ def main():
     chains["_allow_cel"] = floor_flags.apply(lambda x: x[3])
     chains["_sep_req"] = chains["separate_entrance"].astype(str).str.lower().isin(["true", "1"])
 
-    lot_cols = ["номер_лота", "адрес", "площадь_м²", "этаж_норм", "_sep"]
+    lot_cols = ["номер_лота", "адрес", "площадь_м²", "этаж_норм", "_sep", "_near_school"]
     chain_cols = ["name", "category", "area_min_m2", "area_max_m2", "contacts_email",
-                  "_any_floor", "_allow_1st", "_allow_base", "_allow_cel", "_sep_req"]
+                  "_any_floor", "_allow_1st", "_allow_base", "_allow_cel", "_sep_req", "_is_alcohol"]
 
     lots_s = lots[lot_cols].copy()
     chains_s = chains[chain_cols].copy()
@@ -125,8 +131,12 @@ def main():
 
     entrance_ok = ~cross["_sep_req"] | cross["_sep"]
 
-    matched = cross[area_ok & floor_ok & entrance_ok].copy()
-    matched = matched.drop(columns=["_sep", "_any_floor", "_allow_1st", "_allow_base", "_allow_cel", "_sep_req"])
+    # Алкомаркеты запрещены в 100м от образовательных учреждений (171-ФЗ)
+    alcohol_ok = ~(cross["_is_alcohol"] & cross["_near_school"])
+
+    matched = cross[area_ok & floor_ok & entrance_ok & alcohol_ok].copy()
+    matched = matched.drop(columns=["_sep", "_near_school", "_any_floor", "_allow_1st",
+                                     "_allow_base", "_allow_cel", "_sep_req", "_is_alcohol"])
     matched = matched.rename(columns={"name": "chain_name"})
 
     OUT_DIR.mkdir(exist_ok=True)
