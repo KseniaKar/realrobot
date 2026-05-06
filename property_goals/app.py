@@ -713,7 +713,7 @@ _total   = len(df)
 # Unique tenants: deduplicate by (company, address)
 _co_df = _matched[["likely_company", "address_norm", "match_after_days",
                     "площадь_м²", "этаж", "likely_usage", "форма_проведения",
-                    "итоговая_цена_руб", "начальная_цена_руб"]].copy()
+                    "итоговая_цена_руб", "начальная_цена_руб", "match_confidence"]].copy()
 
 _CHART_ALIASES = {
     "wildberries": "Wildberries", "вайлдберриз": "Wildberries",
