@@ -892,8 +892,20 @@ _auc_total = (~_pub_mask).sum()
 _pub_tenant_pct = int(_is_existing_tenant[_pub_mask].sum() / _pub_total * 100) if _pub_total > 0 else 0
 _auc_tenant_pct = int(_is_existing_tenant[~_pub_mask].sum() / _auc_total * 100) if _auc_total > 0 else 0
 
-_exist_excess_med = df.loc[_is_existing_tenant, "превышение_цены_%"].median()
-_new_excess_med   = df.loc[_is_new_biz_mask,    "превышение_цены_%"].median()
+# Участники на аукционе: действ. арендатор vs новый бизнес
+_auc_df = df[~_pub_mask & df["участники"].notna()].copy()
+_auc_new_part = _auc_df.loc[_auc_df["match_confidence"].fillna("").str.strip().isin(["high","medium","low"]), "участники"].median()
+_auc_ex_part  = _auc_df.loc[_auc_df["match_confidence"].fillna("").str.strip() == "existing_tenant", "участники"].median()
+
+# Цена/м² на аукционе
+_auc_all = df[~_pub_mask].copy()
+_auc_all["цена_за_м²_num"] = pd.to_numeric(_auc_all["цена_за_м²"].astype(str).str.replace(",","."), errors="coerce")
+_auc_new_pm2 = _auc_all.loc[_auc_all["match_confidence"].fillna("").str.strip().isin(["high","medium","low"]), "цена_за_м²_num"].median()
+_auc_ex_pm2  = _auc_all.loc[_auc_all["match_confidence"].fillna("").str.strip() == "existing_tenant", "цена_за_м²_num"].median()
+
+# Публ: доля ниже старта для действ. арендатора
+_pub_ex_df  = df[_pub_mask & _is_existing_tenant & df["превышение_цены_%"].notna()]
+_pub_ex_neg = int((_pub_ex_df["превышение_цены_%"] < 0).mean() * 100) if len(_pub_ex_df) > 0 else 0
 
 i5, i6 = st.columns(2)
 with i5:
@@ -904,13 +916,16 @@ with i5:
         f"При публичном предложении таких случаев больше: {_pub_tenant_pct}% vs {_auc_tenant_pct}% на аукционах."
     )
 with i6:
-    _exist_str = f"{_exist_excess_med:+.1f}%" if not pd.isna(_exist_excess_med) else "—"
-    _new_str   = f"{_new_excess_med:+.1f}%"   if not pd.isna(_new_excess_med)   else "—"
+    _auc_new_part_s = f"{int(_auc_new_part)}" if pd.notna(_auc_new_part) else "—"
+    _auc_ex_part_s  = f"{int(_auc_ex_part)}"  if pd.notna(_auc_ex_part)  else "—"
+    _auc_new_pm2_s  = f"{int(_auc_new_pm2/1000)} тр/м²" if pd.notna(_auc_new_pm2) else "—"
+    _auc_ex_pm2_s   = f"{int(_auc_ex_pm2/1000)} тр/м²"  if pd.notna(_auc_ex_pm2)  else "—"
     st.info(
-        f"**Действующий арендатор — лот дешевле.**  \n"
-        f"Лоты с действующим арендатором превышают стартовую цену в среднем на {_exist_str}, "
-        f"лоты с новым бизнесом — на {_new_str}. "
-        "Уже занятые помещения торгуются менее агрессивно."
+        f"**Арендатор выкупает своё помещение.**  \n"
+        f"На аукционе лоты с действующим арендатором собирают вдвое меньше участников "
+        f"({_auc_ex_part_s} vs {_auc_new_part_s}) и стоят дешевле ({_auc_ex_pm2_s} vs {_auc_new_pm2_s}). "
+        f"На публичном предложении {_pub_ex_neg}% таких лотов закрываются ниже стартовой цены — "
+        f"арендатор дожидается нужной отметки, оставаясь в помещении."
     )
 
 # ── Match by year ────────────────────────────────────────────────────────────
