@@ -14,7 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-05-05-existing-tenant-v13"
+APP_BUILD = "2026-05-06-presale-reclassify-v14"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
@@ -735,6 +735,7 @@ _co_df["days"]     = pd.to_numeric(_co_df["match_after_days"], errors="coerce")
 _co_df["floor_norm"]    = _co_df["этаж"].apply(normalize_floor)
 _co_df["floor1"]        = _co_df["floor_norm"] == "1 этаж"
 _co_df["floor_basement"]= _co_df["floor_norm"] == "Подвал"
+_co_df["is_new_biz"]    = _co_df["match_confidence"].fillna("").str.strip().isin(["high", "medium", "low"])
 
 # Deduplicated: one row per unique (company, address)
 _uniq = _co_df[_co_df["company"] != ""].drop_duplicates(subset=["company", "address_norm"])
@@ -742,7 +743,7 @@ _n_unique = len(_uniq)
 
 # ── KPI row ──────────────────────────────────────────────────────────────────
 k1, k2, k3, k4 = st.columns(4)
-_days_valid  = _co_df["days"].dropna()
+_days_valid  = _co_df.loc[_co_df["is_new_biz"], "days"].dropna()
 _days_valid  = _days_valid[(_days_valid > 0) & (_days_valid <= 365)]
 _floor1_pct  = int(_co_df["floor1"].mean() * 100)
 _floor_bsmt_pct = int(_co_df["floor_basement"].mean() * 100)
@@ -879,16 +880,51 @@ with i4:
         "B2B-сервисы и специализированные офисы уходят из уличного ретейла."
     )
 
+_is_existing_tenant = df["match_confidence"].fillna("").str.strip() == "existing_tenant"
+_is_new_biz_mask    = df["match_confidence"].fillna("").str.strip().isin(["high", "medium", "low"])
+_n_existing = int(_is_existing_tenant.sum())
+_n_new_biz  = int(_is_new_biz_mask.sum())
+_tenant_pct = int(_n_existing / (_n_existing + _n_new_biz) * 100) if (_n_existing + _n_new_biz) > 0 else 0
+
+_pub_mask = df["форма_проведения"].fillna("").str.contains("публичн", case=False)
+_pub_total = _pub_mask.sum()
+_auc_total = (~_pub_mask).sum()
+_pub_tenant_pct = int(_is_existing_tenant[_pub_mask].sum() / _pub_total * 100) if _pub_total > 0 else 0
+_auc_tenant_pct = int(_is_existing_tenant[~_pub_mask].sum() / _auc_total * 100) if _auc_total > 0 else 0
+
+_exist_excess_med = df.loc[_is_existing_tenant, "превышение_цены_%"].median()
+_new_excess_med   = df.loc[_is_new_biz_mask,    "превышение_цены_%"].median()
+
+i5, i6 = st.columns(2)
+with i5:
+    st.info(
+        f"**Каждый второй найденный арендатор — действующий.**  \n"
+        f"{_n_existing} из {_n_existing + _n_new_biz} подобранных лотов ({_tenant_pct}%) — "
+        f"компания работала в помещении ещё до смены собственника. "
+        f"При публичном предложении таких случаев больше: {_pub_tenant_pct}% vs {_auc_tenant_pct}% на аукционах."
+    )
+with i6:
+    _exist_str = f"{_exist_excess_med:+.1f}%" if not pd.isna(_exist_excess_med) else "—"
+    _new_str   = f"{_new_excess_med:+.1f}%"   if not pd.isna(_new_excess_med)   else "—"
+    st.info(
+        f"**Действующий арендатор — лот дешевле.**  \n"
+        f"Лоты с действующим арендатором превышают стартовую цену в среднем на {_exist_str}, "
+        f"лоты с новым бизнесом — на {_new_str}. "
+        "Уже занятые помещения торгуются менее агрессивно."
+    )
+
 # ── Match by year ────────────────────────────────────────────────────────────
 _by_year = (
     df.groupby("год_торгов")
     .apply(lambda g: pd.Series({
         "всего": len(g),
-        "с матчем": (g["match_confidence"].fillna("").str.strip() != "").sum(),
+        "новый бизнес": g["match_confidence"].fillna("").str.strip().isin(["high", "medium", "low"]).sum(),
+        "действ. арендатор": (g["match_confidence"].fillna("").str.strip() == "existing_tenant").sum(),
     }))
     .reset_index()
 )
-_by_year["% матча"] = (_by_year["с матчем"] / _by_year["всего"] * 100).round(0).astype(int)
+_by_year["с матчем"] = _by_year["новый бизнес"] + _by_year["действ. арендатор"]
+_by_year["% матча"]  = (_by_year["с матчем"] / _by_year["всего"] * 100).round(0).astype(int)
 
 st.markdown("**Матчи по году продажи**")
 st.dataframe(
