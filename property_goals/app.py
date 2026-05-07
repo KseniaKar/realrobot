@@ -14,7 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-APP_BUILD = "2026-05-06-school-match-clear-v17"
+APP_BUILD = "2026-05-07-alco-filters-v22"
 BASE_DIR = Path(__file__).resolve().parent
 ENRICHED_GEO_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched_geo.csv"
 ENRICHED_DATA_PATH = BASE_DIR / "investmoscow_sold_2022_2026_enriched.csv"
