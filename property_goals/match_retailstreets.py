@@ -91,8 +91,10 @@ def main():
         lots["площадь_м²"].astype(str).str.replace(",", ".").str.strip(), errors="coerce"
     )
     lots["_sep"] = lots["тип_входа"].fillna("").astype(str).str.lower().str.contains("отдельный")
-    lots["_near_school"] = lots["near_school_100m"].fillna("").astype(str).str.strip() == "1" \
+    lots["_near_school"] = (
+        pd.to_numeric(lots["near_school_100m"], errors="coerce").fillna(0) == 1
         if "near_school_100m" in lots.columns else False
+    )
 
     # Алкомаркеты запрещены в 100м от образовательных учреждений (171-ФЗ, ст. 16)
     ALCOHOL_CATEGORY = "Алкомаркеты"

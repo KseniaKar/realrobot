@@ -23,8 +23,9 @@ BBOX = "55.48,36.80,56.02,37.97"
 
 # amenity-теги, создающие 100м зону по 171-ФЗ
 # school=общеобразовательные, kindergarten=детсады,
-# college=колледжи/техникумы, university=вузы
-AMENITIES = ["school", "kindergarten", "college", "university"]
+# college=колледжи/техникумы/ПТУ, university=вузы,
+# music_school=ДМШ/ДШИ (детские школы искусств, 273-ФЗ ст. 23)
+AMENITIES = ["school", "kindergarten", "college", "university", "music_school"]
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 

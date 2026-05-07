@@ -37,7 +37,8 @@ with ENRICHED.open(encoding="utf-8-sig", newline="") as f:
     fieldnames = reader.fieldnames
     for row in reader:
         conf = (row.get("match_confidence") or "").strip()
-        near = row.get("near_school_100m", "").strip() == "1"
+        near_raw = row.get("near_school_100m", "").strip()
+        near = near_raw in ("1", "1.0")
         company = row.get("likely_company", "").strip()
         if conf in ALL_MATCH_CONF and near and company and is_alcohol(company):
             cleared.append({
