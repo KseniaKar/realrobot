@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+_streamlit_out.txt
+_streamlit_err.txt
+_new_out.txt
+_new_err.txt
+bash.exe.stackdump
+.claude/
