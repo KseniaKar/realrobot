@@ -24,6 +24,20 @@ presentation/slides — копия.pptx
 
 rent.md
 
+# look_a_like_prices — исходные данные ЖКХ (2.7 GB)
+look_a_like_prices/data/zhk/
+
+# look_a_like_prices — временные файлы
+look_a_like_prices/_entrance_progress.json
+look_a_like_prices/_cian_debug.txt
+look_a_like_prices/_cian_parse_err.txt
+look_a_like_prices/_cian_parse_out.txt
+look_a_like_prices/_new_err.txt
+look_a_like_prices/_new_out.txt
+look_a_like_prices/_streamlit_err.txt
+look_a_like_prices/_streamlit_out.txt
+look_a_like_prices/bash.exe.stackdump
+
 .ipynb_checkpoints/
 __pycache__/
 .env

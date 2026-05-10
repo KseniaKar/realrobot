@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import re
 
@@ -7,10 +8,36 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
+import xgboost as xgb
 
 BASE_DIR = Path(__file__).resolve().parent
 ANALOGUES_PATH = BASE_DIR / "excel2-30025-1.xlsx"
 LOTS_PATH = BASE_DIR.parent / "property_goals" / "investmoscow_sold_2022_2026_enriched_geo.csv"
+BUILDINGS_PATH = BASE_DIR / "data" / "buildings_moscow.parquet"
+MODEL_PATH = BASE_DIR / "data" / "hedonic_xgb.json"
+FEATURES_PATH = BASE_DIR / "data" / "hedonic_features.json"
+
+_FLOOR_LOT = {
+    "подвал": "цоколь", "цоколь": "цоколь", "-1": "цоколь", "-2": "цоколь",
+    "1": "1", "1 этаж": "1",
+    "2": "2", "3": "3+", "4": "3+", "5": "3+",
+}
+
+def _norm_floor_lot(s):
+    if not isinstance(s, str): return None
+    s = s.strip().lower()
+    if s in _FLOOR_LOT: return _FLOOR_LOT[s]
+    try:
+        n = int(s)
+        return "цоколь" if n <= 0 else ("1" if n == 1 else ("2" if n == 2 else "3+"))
+    except ValueError: pass
+    return None
+
+_ENTRANCE_LOT = {
+    "отдельный":                           "отдельный с улицы",
+    "вход через места общего пользования": "общий с улицы",
+    "вход через подъезд":                  "общий с улицы",
+}
 
 st.set_page_config(page_title="Аналоги продажи", layout="wide")
 
@@ -88,8 +115,67 @@ def load_analogues():
     df["вид_объекта"] = df["Доп.параметры"].apply(lambda x: _parse_param(x, "Вид объекта"))
     df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
     df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
-    df = df[df["этаж_норм"] != "-2"]  # подземные склады, нерелевантны
+    df = df[df["этаж_норм"] != "-2"]
     return df.dropna(subset=["lat", "lng", "цена"]).copy()
+
+
+@st.cache_data
+def load_model():
+    booster = xgb.Booster()
+    booster.load_model(str(MODEL_PATH))
+    with open(FEATURES_PATH, encoding="utf-8") as fh:
+        feature_cols = json.load(fh)
+    return booster, feature_cols
+
+
+def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800):
+    floor = _norm_floor_lot(str(lot.get("этаж", "")))
+    entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
+    entrance = _ENTRANCE_LOT.get(entrance_raw)
+
+    row = {c: 0.0 for c in feature_cols}
+    row["площадь"] = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else np.nan
+    row["до_метро"] = np.nan
+    row["apt_400"] = float(apt_400)
+    row["apt_800"] = float(apt_800)
+    row["lat"] = float(lot["latitude"])
+    row["lng"] = float(lot["longitude"])
+    if floor and f"этаж_{floor}" in row:
+        row[f"этаж_{floor}"] = 1.0
+    if entrance and f"вход_{entrance}" in row:
+        row[f"вход_{entrance}"] = 1.0
+
+    X = np.array([[row[c] for c in feature_cols]], dtype=np.float32)
+    dm = xgb.DMatrix(X, feature_names=feature_cols)
+    log_pred = booster.predict(dm)[0]
+    return float(np.exp(log_pred))
+
+
+@st.cache_data
+def load_buildings():
+    df = pd.read_parquet(BUILDINGS_PATH, columns=["lat", "lng", "apt_living", "residents_est"])
+    return df
+
+
+def count_residents(lat, lon, radius_m, buildings):
+    dists = haversine_vec(lat, lon, buildings["lat"].values, buildings["lng"].values)
+    mask = dists <= radius_m
+    apts = int(buildings.loc[mask, "apt_living"].sum())
+    residents = int(buildings.loc[mask, "residents_est"].sum())
+    return apts, residents
+
+
+def territorial_price(lot_lat, lot_lon, lot_floor_norm, lot_area, ana_df, radius_m):
+    dists = haversine_vec(lot_lat, lot_lon, ana_df["lat"].values, ana_df["lng"].values)
+    mask = (dists <= radius_m) & ana_df["цена_за_м²"].notna()
+    if lot_floor_norm:
+        mask &= ana_df["этаж_норм"].values == lot_floor_norm
+    if lot_area and lot_area > 0:
+        mask &= (ana_df["площадь"].values >= lot_area * 0.5) & (ana_df["площадь"].values <= lot_area * 1.5)
+    sub = ana_df[mask]
+    if len(sub) < 2:
+        return None, len(sub)
+    return float(sub["цена_за_м²"].median()), len(sub)
 
 
 @st.cache_data
@@ -107,7 +193,6 @@ def load_lots():
 
 @st.cache_data
 def compute_loo_cv(_df, n_rows, radius_m=700, area_pct=50):
-    """LOO-CV: predict each analogue's price from same-floor, similar-area neighbours within radius_m."""
     valid = _df.dropna(subset=["площадь", "цена_за_м²", "этаж_норм"]).copy()
     valid = valid[valid["площадь"] > 0].reset_index(drop=True)
 
@@ -122,18 +207,14 @@ def compute_loo_cv(_df, n_rows, radius_m=700, area_pct=50):
     for i in range(len(valid)):
         dists = haversine_vec(lats[i], lons[i], lats, lons)
         neighbours = (dists > 100) & (floors == floors[i]) & (dists <= radius_m)
-
         lo = areas[i] * (1 - area_pct / 100)
         hi = areas[i] * (1 + area_pct / 100)
         neighbours &= (areas >= lo) & (areas <= hi)
-
         if neighbours.sum() < 2:
             continue
-
         pred_pm2 = float(np.median(pm2[neighbours]))
         pred_price = pred_pm2 * areas[i]
         rel_err = (pred_price - prices[i]) / prices[i]
-
         results.append({
             "этаж": floors[i],
             "ошибка": rel_err,
@@ -147,6 +228,8 @@ def compute_loo_cv(_df, n_rows, radius_m=700, area_pct=50):
 
 analogues = load_analogues()
 lots = load_lots()
+buildings = load_buildings()
+hedge_model, hedge_features = load_model()
 
 st.title("Аналоги продажи")
 st.caption(
@@ -156,7 +239,7 @@ st.caption(
 
 tab1, tab2 = st.tabs(["Подбор аналогов", "Точность метода"])
 
-# ── Вкладка 1: подбор аналогов ────────────────────────────────────────────────
+# ── Вкладка 1 ─────────────────────────────────────────────────────────────────
 with tab1:
     lot_labels = (
         "№"
@@ -178,7 +261,7 @@ with tab1:
     else:
         selected_lots = lots.loc[[label_to_idx[l] for l in selected_labels]].copy()
 
-        fcol1, fcol2, fcol3 = st.columns(3)
+        fcol1, fcol2, fcol3, fcol4 = st.columns(4)
         with fcol1:
             radius_m = st.slider("Радиус поиска, м", 100, 3000, 700, step=100)
         with fcol2:
@@ -190,6 +273,11 @@ with tab1:
                 area_pct = st.slider("Диапазон площади ±%", 10, 100, 50, step=10)
             else:
                 area_pct = 50
+        with fcol4:
+            alpha = st.slider(
+                "α (территориальная доля)", 0.0, 1.0, 0.1, step=0.05,
+                help="Итоговая цена = α × территориальная медиана + (1−α) × модель XGBoost"
+            )
 
         collected = []
         for _, lot in selected_lots.iterrows():
@@ -222,12 +310,82 @@ with tab1:
         else:
             all_nearby = pd.DataFrame()
 
-        mc1, mc2, mc3 = st.columns(3)
+        mc1, mc2, mc3, mc4, mc5 = st.columns(5)
         mc1.metric("Аналогов найдено", len(all_nearby))
         mc2.metric("Лотов выбрано", len(selected_lots))
         if not all_nearby.empty and all_nearby["цена_за_м²"].notna().any():
             med_pm2 = all_nearby["цена_за_м²"].median()
             mc3.metric("Медиана цены/м² аналогов", f"{med_pm2/1000:.0f} тр/м²")
+
+        # аудитория + предсказания
+        lot_stats = []
+        total_apts, total_residents = 0, 0
+        for _, lot in selected_lots.iterrows():
+            lat_ = float(lot["latitude"])
+            lon_ = float(lot["longitude"])
+            lot_area = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else None
+            lot_floor = _norm_floor_lot(str(lot.get("этаж", "")))
+
+            a, r = count_residents(lat_, lon_, radius_m, buildings)
+            a400, _ = count_residents(lat_, lon_, 400, buildings)
+            a800, _ = count_residents(lat_, lon_, 800, buildings)
+            total_apts += a
+            total_residents += r
+
+            model_pm2 = predict_price_m2(hedge_model, hedge_features, lot, a400, a800)
+            terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, analogues, radius_m)
+
+            if terr_pm2 and model_pm2:
+                final_pm2 = alpha * terr_pm2 + (1 - alpha) * model_pm2
+            elif terr_pm2:
+                final_pm2 = terr_pm2
+            else:
+                final_pm2 = model_pm2
+
+            lot_stats.append({
+                "лот": f"№{lot['номер_лота']}",
+                "площадь": lot_area,
+                "apt_400": a400, "apt_800": a800,
+                "model_pm2": model_pm2,
+                "terr_pm2": terr_pm2,
+                "n_terr": n_terr,
+                "final_pm2": final_pm2,
+            })
+
+        mc4.metric("Квартир в радиусе", f"{total_apts:,}".replace(",", " "))
+        mc5.metric("Жителей (оценка)", f"{total_residents:,}".replace(",", " "))
+
+        def _fmt_pm2(pm2, area):
+            if pm2 is None: return "—"
+            s_pm2 = f"{pm2/1000:.0f} тр/м²"
+            s_tot = f" ≈ {pm2*area/1e6:.1f} млн ₽" if area else ""
+            return s_pm2 + s_tot
+
+        if len(lot_stats) == 1:
+            s = lot_stats[0]
+            terr_label = (
+                f"Территориальная (n={s['n_terr']})" if s["terr_pm2"]
+                else f"Территориальная — нет данных (n={s['n_terr']})"
+            )
+            col_t, col_m, col_f = st.columns(3)
+            col_t.metric(terr_label, _fmt_pm2(s["terr_pm2"], s["площадь"]))
+            col_m.metric("Модель XGBoost", _fmt_pm2(s["model_pm2"], s["площадь"]))
+            col_f.metric(f"Итоговая (α={alpha:.2f})", _fmt_pm2(s["final_pm2"], s["площадь"]))
+            st.caption(f"Квартир в 400м: {s['apt_400']:,} · в 800м: {s['apt_800']:,}".replace(",", " "))
+        else:
+            price_rows = []
+            for s in lot_stats:
+                area = s["площадь"]
+                price_rows.append({
+                    "Лот": s["лот"],
+                    "Территориальная, тр/м²": round(s["terr_pm2"]/1000, 0) if s["terr_pm2"] else None,
+                    "Модель, тр/м²": round(s["model_pm2"]/1000, 0) if s["model_pm2"] else None,
+                    f"Итог α={alpha:.2f}, тр/м²": round(s["final_pm2"]/1000, 0) if s["final_pm2"] else None,
+                    "Итог всего, млн ₽": round(s["final_pm2"]*area/1e6, 1) if (s["final_pm2"] and area) else None,
+                    "Кварт. 400м": s["apt_400"],
+                    "Кварт. 800м": s["apt_800"],
+                })
+            st.dataframe(pd.DataFrame(price_rows), hide_index=True, use_container_width=True)
 
         center_lat = selected_lots["latitude"].mean()
         center_lon = selected_lots["longitude"].mean()
@@ -387,7 +545,6 @@ with tab2:
                 "P75, %": round(e.quantile(0.75) * 100, 0),
             })
 
-        # count all objects per floor (not just those in CV)
         total_by_floor = (
             analogues.dropna(subset=["площадь", "цена_за_м²", "этаж_норм"])
             .groupby("этаж_норм").size().rename("Всего")
