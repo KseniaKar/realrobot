@@ -11,11 +11,22 @@ from streamlit_folium import st_folium
 import xgboost as xgb
 
 BASE_DIR = Path(__file__).resolve().parent
-ANALOGUES_PATH = BASE_DIR / "excel2-30025-1.xlsx"
+ANALOGUES_PATH = BASE_DIR / "data" / "sale.csv" / "sale.csv"
+ENTRANCE_PATH = BASE_DIR / "_entrance_results.csv"
 LOTS_PATH = BASE_DIR.parent / "property_goals" / "investmoscow_sold_2022_2026_enriched_geo.csv"
 BUILDINGS_PATH = BASE_DIR / "data" / "buildings_moscow.parquet"
 MODEL_PATH = BASE_DIR / "data" / "hedonic_xgb.json"
 FEATURES_PATH = BASE_DIR / "data" / "hedonic_features.json"
+
+NORM_ENTRANCE = {
+    'отдельный с улицы': 'отдельный с улицы', 'separateFromTheStreet': 'отдельный с улицы',
+    'separateFromStreet': 'отдельный с улицы',
+    'отдельный со двора': 'отдельный со двора', 'separateFromTheYard': 'отдельный со двора',
+    'separateFromYard': 'отдельный со двора',
+    'commonFromStreet': 'общий с улицы', 'commonFromTheStreet': 'общий с улицы',
+    'commonFromYard': 'общий со двора', 'commonFromTheYard': 'общий со двора',
+    'throughEntrance': 'через подъезд', 'throughHall': 'через холл',
+}
 
 _FLOOR_LOT = {
     "подвал": "цоколь", "цоколь": "цоколь", "-1": "цоколь", "-2": "цоколь",
@@ -103,7 +114,7 @@ def normalize_floor(s):
 
 @st.cache_data
 def load_analogues():
-    df = pd.read_excel(ANALOGUES_PATH)
+    df = pd.read_csv(str(ANALOGUES_PATH), sep=";")
     df["площадь"] = df.apply(_get_area, axis=1)
     df["цена"] = pd.to_numeric(df["Цена"], errors="coerce")
     df["цена_млн"] = df["цена"] / 1_000_000
@@ -116,7 +127,15 @@ def load_analogues():
     df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
     df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
     df = df[df["этаж_норм"] != "-2"]
-    return df.dropna(subset=["lat", "lng", "цена"]).copy()
+    df = df.dropna(subset=["lat", "lng", "цена"]).copy()
+    # джойним тип входа из спарсенных данных
+    if ENTRANCE_PATH.exists():
+        ent = pd.read_csv(str(ENTRANCE_PATH), encoding="utf-8-sig")
+        ent["тип_входа"] = ent["тип_входа_циан"].map(NORM_ENTRANCE)
+        df = df.merge(ent[["URL", "тип_входа"]], on="URL", how="left")
+    else:
+        df["тип_входа"] = None
+    return df
 
 
 @st.cache_data
@@ -165,13 +184,18 @@ def count_residents(lat, lon, radius_m, buildings):
     return apts, residents
 
 
-def territorial_price(lot_lat, lot_lon, lot_floor_norm, lot_area, ana_df, radius_m):
+def territorial_price(lot_lat, lot_lon, lot_floor_norm, lot_area, lot_entrance, ana_df, radius_m):
     dists = haversine_vec(lot_lat, lot_lon, ana_df["lat"].values, ana_df["lng"].values)
     mask = (dists <= radius_m) & ana_df["цена_за_м²"].notna()
     if lot_floor_norm:
         mask &= ana_df["этаж_норм"].values == lot_floor_norm
     if lot_area and lot_area > 0:
         mask &= (ana_df["площадь"].values >= lot_area * 0.5) & (ana_df["площадь"].values <= lot_area * 1.5)
+    # фильтр по типу входа — только если у лота известен вход и есть достаточно аналогов
+    if lot_entrance and "тип_входа" in ana_df.columns:
+        mask_entrance = mask & (ana_df["тип_входа"].values == lot_entrance)
+        if mask_entrance.sum() >= 2:
+            mask = mask_entrance
     sub = ana_df[mask]
     if len(sub) < 2:
         return None, len(sub)
@@ -332,8 +356,10 @@ with tab1:
             total_apts += a
             total_residents += r
 
+            entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
+            lot_entrance = _ENTRANCE_LOT.get(entrance_raw)
             model_pm2 = predict_price_m2(hedge_model, hedge_features, lot, a400, a800)
-            terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, analogues, radius_m)
+            terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, lot_entrance, analogues, radius_m)
 
             if terr_pm2 and model_pm2:
                 final_pm2 = alpha * terr_pm2 + (1 - alpha) * model_pm2
