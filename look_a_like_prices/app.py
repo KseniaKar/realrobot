@@ -132,6 +132,7 @@ def load_analogues():
     df = df[df["этаж_норм"] != "-2"]
     df = df[df["площадь"].isna() | (df["площадь"] >= 15)]  # убираем кладовки и ларьки
     df = df.dropna(subset=["lat", "lng", "цена"]).copy()
+    df = df[df["цена_за_м²"].isna() | (df["цена_за_м²"].between(50_000, 3_000_000))].copy()
     # джойним тип входа из спарсенных данных
     if ENTRANCE_PATH.exists():
         ent = pd.read_csv(str(ENTRANCE_PATH), encoding="utf-8-sig")
