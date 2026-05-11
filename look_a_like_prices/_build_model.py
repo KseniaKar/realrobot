@@ -6,6 +6,7 @@ BallTree для быстрого подсчёта квартир в радиус
 import json
 import re
 import sys
+import zipfile
 import numpy as np
 import pandas as pd
 from sklearn.neighbors import BallTree
@@ -13,11 +14,15 @@ from xgboost import XGBRegressor
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-SALE_CSV   = 'C:/git/realrobot/look_a_like_prices/data/sale_dedup.csv'
-ARENDA_CSV = 'C:/git/realrobot/look_a_like_prices/data/arenda_dedup.csv'
-ENTRANCE   = 'C:/git/realrobot/look_a_like_prices/_entrance_results.csv'
-BUILDINGS  = 'C:/git/realrobot/look_a_like_prices/data/buildings_moscow.parquet'
-MODEL_DIR  = 'C:/git/realrobot/look_a_like_prices/data'
+R_EARTH = 6_371_000.0
+
+SALE_CSV       = 'C:/git/realrobot/look_a_like_prices/data/sale_dedup.csv'
+ARENDA_CSV     = 'C:/git/realrobot/look_a_like_prices/data/arenda_dedup.csv'
+ENTRANCE       = 'C:/git/realrobot/look_a_like_prices/_entrance_results.csv'
+BUILDINGS      = 'C:/git/realrobot/look_a_like_prices/data/buildings_moscow.parquet'
+VESTIBULE_ZIP  = 'C:/git/realrobot/look_a_like_prices/data/metro/624CSV.zip'
+PASSENGERS_ZIP = 'C:/git/realrobot/look_a_like_prices/data/metro/62743CSV.zip'
+MODEL_DIR      = 'C:/git/realrobot/look_a_like_prices/data'
 
 NORM_ENTRANCE = {
     # Яндекс (русские значения без направления)
@@ -80,7 +85,6 @@ df['цена'] = pd.to_numeric(df['Цена'], errors='coerce')
 df['цена_за_м2'] = np.where(df['площадь'].fillna(0) > 0, df['цена'] / df['площадь'], np.nan)
 df['этаж_норм']        = df['Доп.параметры'].apply(lambda x: _parse_param(x, 'Этаж')).apply(normalize_floor)
 df['этажность_здания'] = pd.to_numeric(df['Доп.параметры'].apply(lambda x: _parse_param(x, 'Этажность здания')), errors='coerce')
-df['до_метро'] = pd.to_numeric(df['Расстояние до метро, км'], errors='coerce')
 df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lng'] = pd.to_numeric(df['lng'], errors='coerce')
 df['вид'] = df['Доп.параметры'].apply(lambda x: _parse_param(x, 'Вид объекта'))
@@ -92,6 +96,45 @@ exclude_vid = {'Здание', 'Коммерческая земля', 'Скла�
 df = df[~df['вид'].isin(exclude_vid)].copy().reset_index(drop=True)
 print(f'  После очистки: {len(df)} строк')
 print(f'  Вид объекта: {df["вид"].value_counts().to_dict()}')
+
+# ── вестибюли метро + пассажиропоток ─────────────────────────────────────────
+print('\nЗагружаем вестибюли и пассажиропоток...')
+with zipfile.ZipFile(VESTIBULE_ZIP) as zf:
+    with zf.open('data-624-15-04-2026.csv') as f:
+        vest_df = pd.read_csv(f, encoding='utf-8-sig', sep=None, engine='python')
+vest_df = vest_df.iloc[1:].reset_index(drop=True)
+vest_df['lat_m'] = pd.to_numeric(vest_df['Latitude in WGS-84'],  errors='coerce')
+vest_df['lng_m'] = pd.to_numeric(vest_df['Longitude in WGS-84'], errors='coerce')
+vest_df['metro_ticket_machines'] = pd.to_numeric(vest_df['Ticket machines amount'], errors='coerce').fillna(3.0)
+vest_df['metro_vest_type'] = vest_df['Vestibule type'].map({
+    'подземный': 2.0, 'наземный отдельностоящий': 1.0, 'наземный, встроенный в здание': 0.0,
+}).fillna(1.0)
+vest_df = vest_df.dropna(subset=['lat_m', 'lng_m']).reset_index(drop=True)
+
+with zipfile.ZipFile(PASSENGERS_ZIP) as zf:
+    with zf.open('data-62743-24-04-2026.csv') as f:
+        pass_df = pd.read_csv(f, encoding='utf-8-sig', sep=None, engine='python')
+pass_df = pass_df.iloc[1:].copy()
+pass_df.columns = ['station', 'line', 'year', 'quarter', 'incoming', 'outgoing', 'gid']
+pass_df['incoming'] = pd.to_numeric(pass_df['incoming'], errors='coerce')
+pass_df['outgoing'] = pd.to_numeric(pass_df['outgoing'], errors='coerce')
+pass_df['total'] = pass_df['incoming'].fillna(0) + pass_df['outgoing'].fillna(0)
+pass_2024 = pass_df[pass_df['year'] == '2024'].groupby('station')['total'].sum()
+median_pass = float(pass_2024.median())
+station_passengers = pass_2024.to_dict()
+
+metro_tree = BallTree(np.radians(vest_df[['lat_m', 'lng_m']].values), metric='haversine')
+q_metro = np.radians(df[['lat', 'lng']].values)
+dist_m, idx_m = metro_tree.query(q_metro, k=1)
+idx_near = idx_m.flatten()
+
+df['до_метро'] = dist_m.flatten() * R_EARTH / 1000
+df['metro_vest_type'] = vest_df['metro_vest_type'].values[idx_near]
+df['metro_ticket_machines'] = vest_df['metro_ticket_machines'].values[idx_near]
+nearest_stations = vest_df['Metro station name'].values[idx_near]
+df['metro_passengers_annual'] = [station_passengers.get(s, median_pass) for s in nearest_stations]
+print(f'  Вестибюлей: {len(vest_df)} | Медиана до_метро: {df["до_метро"].median():.3f} км')
+print(f'  Пассажиропоток 2024: {len(station_passengers)} станций | Медиана: {median_pass/1e6:.1f}М')
 
 # тип входа — джойним старые спарсенные данные
 entrance = pd.read_csv(ENTRANCE, encoding='utf-8-sig')
@@ -110,7 +153,6 @@ tree = BallTree(b_coords, metric='haversine')
 print('Считаем квартиры в 400м/800м...')
 q_coords = np.radians(df[['lat','lng']].values)
 
-R_EARTH = 6_371_000.0
 idx_400 = tree.query_radius(q_coords, r=400/R_EARTH)
 idx_800 = tree.query_radius(q_coords, r=800/R_EARTH)
 
@@ -194,7 +236,8 @@ feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800',
                   'rent_count_700m', 'sale_count_700m',
                   'dist_kremlin', 'lat', 'lng',
                   'этажность_здания',
-                  'вход_отдельный_any', 'вход_общий_any']
+                  'вход_отдельный_any', 'вход_общий_any',
+                  'metro_passengers_annual', 'metro_vest_type']
 X = pd.concat([df[feat_cols_base], floor_dummies, vid_dummies], axis=1).astype(float)
 y = df['цена_за_м2'].values
 

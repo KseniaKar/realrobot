@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import re
+import zipfile
 
 import altair as alt
 import folium
@@ -9,6 +10,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
 import xgboost as xgb
+from sklearn.neighbors import BallTree
 
 BASE_DIR = Path(__file__).resolve().parent
 ANALOGUES_PATH  = BASE_DIR / "data" / "sale_dedup.csv"
@@ -20,6 +22,8 @@ MODEL_PATH      = BASE_DIR / "data" / "hedonic_xgb.json"
 FEATURES_PATH   = BASE_DIR / "data" / "hedonic_features.json"
 RENT_MODEL_PATH    = BASE_DIR / "data" / "rent_xgb.json"
 RENT_FEATURES_PATH = BASE_DIR / "data" / "rent_features.json"
+VESTIBULE_ZIP   = BASE_DIR / "data" / "metro" / "624CSV.zip"
+PASSENGERS_ZIP  = BASE_DIR / "data" / "metro" / "62743CSV.zip"
 
 NORM_ENTRANCE = {
     'отдельный':          'отдельный',
@@ -205,30 +209,73 @@ def load_rent_model():
     return booster, feature_cols
 
 
+@st.cache_data
+def load_metro_data():
+    with zipfile.ZipFile(str(VESTIBULE_ZIP)) as zf:
+        with zf.open("data-624-15-04-2026.csv") as f:
+            vest_df = pd.read_csv(f, encoding="utf-8-sig", sep=None, engine="python")
+    vest_df = vest_df.iloc[1:].reset_index(drop=True)
+    vest_df["lat_m"] = pd.to_numeric(vest_df["Latitude in WGS-84"],  errors="coerce")
+    vest_df["lng_m"] = pd.to_numeric(vest_df["Longitude in WGS-84"], errors="coerce")
+    vest_df["metro_ticket_machines"] = pd.to_numeric(vest_df["Ticket machines amount"], errors="coerce").fillna(3.0)
+    vest_df["metro_vest_type"] = vest_df["Vestibule type"].map({
+        "подземный": 2.0, "наземный отдельностоящий": 1.0, "наземный, встроенный в здание": 0.0,
+    }).fillna(1.0)
+    vest_df = vest_df.dropna(subset=["lat_m", "lng_m"]).reset_index(drop=True)
+    tree = BallTree(np.radians(vest_df[["lat_m", "lng_m"]].values), metric="haversine")
+
+    with zipfile.ZipFile(str(PASSENGERS_ZIP)) as zf:
+        with zf.open("data-62743-24-04-2026.csv") as f:
+            pass_df = pd.read_csv(f, encoding="utf-8-sig", sep=None, engine="python")
+    pass_df = pass_df.iloc[1:].copy()
+    pass_df.columns = ["station", "line", "year", "quarter", "incoming", "outgoing", "gid"]
+    pass_df["incoming"] = pd.to_numeric(pass_df["incoming"], errors="coerce")
+    pass_df["outgoing"] = pd.to_numeric(pass_df["outgoing"], errors="coerce")
+    pass_df["total"] = pass_df["incoming"].fillna(0) + pass_df["outgoing"].fillna(0)
+    pass_2024 = pass_df[pass_df["year"] == "2024"].groupby("station")["total"].sum()
+    median_pass = float(pass_2024.median())
+    station_passengers = pass_2024.to_dict()
+
+    return tree, vest_df, station_passengers, median_pass
+
+
+def _metro_km_from_coords(lat, lng):
+    if not (np.isfinite(lat) and np.isfinite(lng)):
+        return np.nan
+    tree, _, _, _ = load_metro_data()
+    dist_rad, _ = tree.query([[np.radians(lat), np.radians(lng)]], k=1)
+    return float(dist_rad[0, 0]) * 6_371_000 / 1000
+
+
+def get_metro_extra_features(lat, lng):
+    """Возвращает metro_passengers_annual, metro_vest_type."""
+    if not (np.isfinite(lat) and np.isfinite(lng)):
+        return np.nan, 1.0
+    tree, vest_df, station_passengers, median_pass = load_metro_data()
+    _, idx = tree.query([[np.radians(lat), np.radians(lng)]], k=1)
+    i = int(idx[0, 0])
+    station = vest_df["Metro station name"].iloc[i]
+    passengers = float(station_passengers.get(station, median_pass))
+    vest_type = float(vest_df["metro_vest_type"].iloc[i])
+    return passengers, vest_type
+
+
 KREMLIN_LAT, KREMLIN_LON = 55.7520, 37.6175
 
 _ВХОД_ОТДЕЛЬНЫЙ = {'отдельный', 'отдельный с улицы', 'отдельный со двора'}
 _ВХОД_ОБЩИЙ     = {'общий', 'общий с улицы', 'через подъезд', 'через холл'}
 
-_METRO_MIN_RE = re.compile(r'\((\d+)\s*мин\)', re.IGNORECASE)
-
-def _metro_km_from_lot(metro_str):
-    """Парсит 'Название (N мин)' → N × 0.083 км. Возвращает np.nan если нет данных."""
-    if not isinstance(metro_str, str):
-        return np.nan
-    m = _METRO_MIN_RE.search(metro_str)
-    return float(m.group(1)) * 0.083 if m else np.nan
-
 def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
                      median_rent_700m=np.nan, median_rent_700m_same_type=np.nan,
-                     median_rent_1500m=np.nan, rent_count_700m=0, sale_count_700m=0):
+                     median_rent_1500m=np.nan, rent_count_700m=0, sale_count_700m=0,
+                     metro_passengers_annual=np.nan, metro_vest_type=1.0):
     floor       = _norm_floor_lot(str(lot.get("этаж", "")))
     entrance    = _ENTRANCE_LOT.get(str(lot.get("тип_входа", "")).strip().lower())
     vid         = _VID_LOT.get(str(lot.get("функциональное_назначение", "")).strip().lower())
 
     row = {c: 0.0 for c in feature_cols}
     row["площадь"] = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else np.nan
-    row["до_метро"] = _metro_km_from_lot(lot.get("метро"))
+    row["до_метро"] = _metro_km_from_coords(float(lot["latitude"]), float(lot["longitude"]))
     row["apt_400"]  = float(apt_400)
     row["apt_800"]  = float(apt_800)
     if "median_rent_700m" in row:
@@ -256,6 +303,10 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
         row["вход_общий_any"] = 1.0
     if vid and f"вид_{vid}" in row:
         row[f"вид_{vid}"] = 1.0
+    if "metro_passengers_annual" in row:
+        row["metro_passengers_annual"] = float(metro_passengers_annual) if np.isfinite(float(metro_passengers_annual or 0)) else 0.0
+    if "metro_vest_type" in row:
+        row["metro_vest_type"] = float(metro_vest_type)
 
     X = np.array([[row[c] for c in feature_cols]], dtype=np.float32)
     dm = xgb.DMatrix(X, feature_names=feature_cols)
@@ -265,14 +316,15 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
 
 def predict_rent_pm2(booster, feature_cols, lot, apt_400, apt_800,
                      median_sale_700m=np.nan, median_sale_1500m=np.nan,
-                     sale_count_700m=0, rent_count_700m=0):
+                     sale_count_700m=0, rent_count_700m=0,
+                     metro_passengers_annual=np.nan, metro_vest_type=1.0):
     floor    = _norm_floor_lot(str(lot.get("этаж", "")))
     entrance = _ENTRANCE_LOT.get(str(lot.get("тип_входа", "")).strip().lower())
     vid      = _VID_LOT.get(str(lot.get("функциональное_назначение", "")).strip().lower())
 
     row = {c: 0.0 for c in feature_cols}
     row["площадь"]  = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else np.nan
-    row["до_метро"] = _metro_km_from_lot(lot.get("метро"))
+    row["до_метро"] = _metro_km_from_coords(float(lot["latitude"]), float(lot["longitude"]))
     row["apt_400"]  = float(apt_400)
     row["apt_800"]  = float(apt_800)
     if "median_sale_700m" in row:
@@ -298,6 +350,10 @@ def predict_rent_pm2(booster, feature_cols, lot, apt_400, apt_800,
         row["вход_общий_any"] = 1.0
     if vid and f"вид_{vid}" in row:
         row[f"вид_{vid}"] = 1.0
+    if "metro_passengers_annual" in row:
+        row["metro_passengers_annual"] = float(metro_passengers_annual) if np.isfinite(float(metro_passengers_annual or 0)) else 0.0
+    if "metro_vest_type" in row:
+        row["metro_vest_type"] = float(metro_vest_type)
 
     X = np.array([[row[c] for c in feature_cols]], dtype=np.float32)
     dm = xgb.DMatrix(X, feature_names=feature_cols)
@@ -580,9 +636,11 @@ with tab1:
             sale_near_1500 = sale_ana[sale_dists <= 1500]["цена_за_м²"].dropna()
             med_sale_700   = float(sale_near_700.median())  if len(sale_near_700)  >= 2 else np.nan
             med_sale_1500  = float(sale_near_1500.median()) if len(sale_near_1500) >= 2 else np.nan
+            m_pass, m_vest = get_metro_extra_features(lat_, lon_)
             model_pm2 = predict_price_m2(
                 hedge_model, hedge_features, lot, a400, a800,
                 med_rent_700, med_rent_same, med_rent_1500, rent_cnt_700, sale_cnt_700,
+                m_pass, m_vest,
             )
             terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, lot_entrance, sale_ana, radius_m)
 
@@ -618,6 +676,8 @@ with tab1:
                 "med_sale_1500": med_sale_1500,
                 "sale_cnt_700": sale_cnt_700,
                 "rent_cnt_700": rent_cnt_700,
+                "metro_passengers_annual": m_pass,
+                "metro_vest_type": m_vest,
             })
 
         mc4.metric("Квартир в радиусе", f"{total_apts:,}".replace(",", " "))
@@ -850,6 +910,8 @@ with tab2:
                     ls.get("apt_400", 0), ls.get("apt_800", 0),
                     ls.get("med_sale_700", np.nan), ls.get("med_sale_1500", np.nan),
                     ls.get("sale_cnt_700", 0), ls.get("rent_cnt_700", 0),
+                    ls.get("metro_passengers_annual", np.nan),
+                    ls.get("metro_vest_type", 1.0),
                 )
             rent_stats.append({
                 "лот": lot_label,
