@@ -189,7 +189,7 @@ df['вход_отдельный_any'] = df['тип_входа'].isin(ВХОД_О
 df['вход_общий_any']     = df['тип_входа'].isin(ВХОД_ОБЩИЙ).astype(float)
 
 feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800',
-                  'median_rent_700m_same_type', 'median_rent_1500m',
+                  'median_rent_700m', 'median_rent_700m_same_type', 'median_rent_1500m',
                   'rent_count_700m', 'sale_count_700m',
                   'dist_kremlin', 'lat', 'lng',
                   'вход_отдельный_any', 'вход_общий_any']

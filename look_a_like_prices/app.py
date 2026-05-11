@@ -171,7 +171,7 @@ _ВХОД_ОТДЕЛЬНЫЙ = {'отдельный', 'отдельный с у�
 _ВХОД_ОБЩИЙ     = {'общий', 'общий с улицы', 'через подъезд', 'через холл'}
 
 def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
-                     median_rent_700m_same_type=np.nan,
+                     median_rent_700m=np.nan, median_rent_700m_same_type=np.nan,
                      median_rent_1500m=np.nan, rent_count_700m=0, sale_count_700m=0):
     floor       = _norm_floor_lot(str(lot.get("этаж", "")))
     entrance    = _ENTRANCE_LOT.get(str(lot.get("тип_входа", "")).strip().lower())
@@ -182,6 +182,8 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
     row["до_метро"] = np.nan
     row["apt_400"]  = float(apt_400)
     row["apt_800"]  = float(apt_800)
+    if "median_rent_700m" in row:
+        row["median_rent_700m"] = float(median_rent_700m) if np.isfinite(median_rent_700m) else 0.0
     if "median_rent_700m_same_type" in row:
         row["median_rent_700m_same_type"] = float(median_rent_700m_same_type) if np.isfinite(median_rent_700m_same_type) else 0.0
     if "median_rent_1500m" in row:
@@ -457,7 +459,7 @@ with tab1:
             sale_cnt_700 = int((sale_dists <= 700).sum())
             model_pm2 = predict_price_m2(
                 hedge_model, hedge_features, lot, a400, a800,
-                med_rent_same, med_rent_1500, rent_cnt_700, sale_cnt_700,
+                med_rent_700, med_rent_same, med_rent_1500, rent_cnt_700, sale_cnt_700,
             )
             terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, lot_entrance, sale_ana, radius_m)
 
