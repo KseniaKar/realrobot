@@ -127,6 +127,8 @@ def load_analogues():
     df["вид_объекта"] = df["Доп.параметры"].apply(lambda x: _parse_param(x, "Вид объекта"))
     df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
     df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
+    if "Расстояние до метро, км" in df.columns:
+        df["Расстояние до метро, км"] = pd.to_numeric(df["Расстояние до метро, км"], errors="coerce")
     df = df[df["этаж_норм"] != "-2"]
     df = df.dropna(subset=["lat", "lng", "цена"]).copy()
     # джойним тип входа из спарсенных данных
