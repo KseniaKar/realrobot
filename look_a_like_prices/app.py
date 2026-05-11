@@ -157,7 +157,7 @@ def load_model():
     return booster, feature_cols
 
 
-def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800, residents_500=0):
+def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800):
     floor = _norm_floor_lot(str(lot.get("этаж", "")))
     entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
     entrance = _ENTRANCE_LOT.get(entrance_raw)
@@ -167,7 +167,6 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800, residents_500
     row["до_метро"] = np.nan
     row["apt_400"] = float(apt_400)
     row["apt_800"] = float(apt_800)
-    row["residents_500"] = float(residents_500)
     row["lat"] = float(lot["latitude"])
     row["lng"] = float(lot["longitude"])
     if floor and f"этаж_{floor}" in row:
@@ -399,7 +398,7 @@ with tab1:
 
             entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
             lot_entrance = _ENTRANCE_LOT.get(entrance_raw)
-            model_pm2 = predict_price_m2(hedge_model, hedge_features, lot, a400, a800, r500)
+            model_pm2 = predict_price_m2(hedge_model, hedge_features, lot, a400, a800)
             terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, lot_entrance, analogues, radius_m)
 
             if terr_pm2 and model_pm2:
