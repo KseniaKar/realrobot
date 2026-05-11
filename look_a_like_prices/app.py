@@ -288,11 +288,13 @@ def load_rent_analogues():
 def territorial_rent(lot_lat, lot_lon, lot_floor_norm, lot_area, rent_df, radius_m):
     dists = haversine_vec(lot_lat, lot_lon, rent_df["lat"].values, rent_df["lng"].values)
     mask  = (dists <= radius_m) & rent_df["цена_за_м²_мес"].notna()
-    if lot_floor_norm:
-        mask &= rent_df["этаж_норм"].values == lot_floor_norm
     if lot_area and lot_area > 0:
         mask &= (rent_df["площадь"].values >= lot_area * 0.5) & \
                 (rent_df["площадь"].values <= lot_area * 1.5)
+    if lot_floor_norm:
+        mask_floor = mask & (rent_df["этаж_норм"].values == lot_floor_norm)
+        if mask_floor.sum() >= 2:
+            mask = mask_floor
     sub = rent_df[mask]
     if len(sub) < 2:
         return None, len(sub)
