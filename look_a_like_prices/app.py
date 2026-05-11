@@ -20,13 +20,18 @@ MODEL_PATH      = BASE_DIR / "data" / "hedonic_xgb.json"
 FEATURES_PATH   = BASE_DIR / "data" / "hedonic_features.json"
 
 NORM_ENTRANCE = {
-    'отдельный с улицы': 'отдельный с улицы', 'separateFromTheStreet': 'отдельный с улицы',
+    'отдельный':          'отдельный',
+    'общий':              'общий',
+    'отдельный с улицы':  'отдельный с улицы', 'separateFromTheStreet': 'отдельный с улицы',
     'separateFromStreet': 'отдельный с улицы',
     'отдельный со двора': 'отдельный со двора', 'separateFromTheYard': 'отдельный со двора',
-    'separateFromYard': 'отдельный со двора',
-    'commonFromStreet': 'общий с улицы', 'commonFromTheStreet': 'общий с улицы',
-    'commonFromYard': 'общий со двора', 'commonFromTheYard': 'общий со двора',
-    'throughEntrance': 'через подъезд', 'throughHall': 'через холл',
+    'separateFromYard':   'отдельный со двора',
+    'общий с улицы':      'общий с улицы',
+    'commonFromStreet':   'общий с улицы', 'commonFromTheStreet': 'общий с улицы',
+    'общий со двора':     'общий со двора',
+    'commonFromYard':     'общий со двора', 'commonFromTheYard': 'общий со двора',
+    'через подъезд':      'через подъезд', 'throughEntrance': 'через подъезд',
+    'через холл':         'через холл',    'throughHall':     'через холл',
 }
 
 _FLOOR_LOT = {
