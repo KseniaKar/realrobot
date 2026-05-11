@@ -996,7 +996,7 @@ with tab2:
 with tab3:
     st.subheader("Точность метода")
 
-    st.markdown("**XGBoost — 5-fold GroupKFold** (объекты одного здания+этажа всегда в одном фолде)")
+    st.markdown("**XGBoost — 5-fold GroupKFold** (объекты одного здания+этажа всегда в одном фолде) — для модели продажи и модели аренды")
     xm1, xm2, xm3 = st.columns(3)
     xm1.metric("MAPE XGBoost", "31%", help="Честная оценка: утечка по зданию исключена")
     xm2.metric("MAPE Combined (α=0.05)", "27%")
