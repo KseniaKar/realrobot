@@ -7,3 +7,4 @@ openpyxl
 altair
 xgboost
 pyarrow
+scikit-learn
