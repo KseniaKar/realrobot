@@ -482,20 +482,22 @@ with tab1:
             pm2_str = (
                 f"{row['цена_за_м²']/1000:.0f} тр/м²" if pd.notna(row["цена_за_м²"]) else "—"
             )
-            area_str = f"{row['площадь']:.0f} м²" if pd.notna(row["площадь"]) else "—"
+            area_str  = f"{row['площадь']:.0f} м²" if pd.notna(row["площадь"]) else "—"
+            цена_str  = f"{row['цена_млн']:.1f} млн ₽" if pd.notna(row.get("цена_млн")) else "—"
+            metro_str = f"{row['Расстояние до метро, км']:.2f} км" if pd.notna(row.get("Расстояние до метро, км")) else "—"
             popup_html = (
                 f"<div style='font-family:Arial;min-width:240px;font-size:13px;line-height:1.5;'>"
                 f"<b>{row['Адрес']}</b><br>"
                 f"Ближайший лот: {row['лот']}<br>"
                 f"Площадь: {area_str}<br>"
-                f"Цена: {row['цена_млн']:.1f} млн ₽<br>"
+                f"Цена: {цена_str}<br>"
                 f"Цена/м²: {pm2_str}<br>"
                 f"Этаж: {row['этаж'] or '—'}<br>"
-                f"Метро/Район: {row['Метро/Район']}<br>"
-                f"До метро: {row['Расстояние до метро, км']:.2f} км<br>"
+                f"Метро/Район: {row.get('Метро/Район') or '—'}<br>"
+                f"До метро: {metro_str}<br>"
                 f"До лота: {row['расстояние_м']:.0f} м<br>"
-                f"Источник: {row['Источник']}<br>"
-                f"<a href='{row['URL']}' target='_blank'>Открыть объявление →</a>"
+                f"Источник: {row.get('Источник') or '—'}<br>"
+                f"<a href='{row['URL']}' target='_blank'>Открыть объявление</a>"
                 f"</div>"
             )
             folium.CircleMarker(
