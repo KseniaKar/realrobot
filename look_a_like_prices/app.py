@@ -37,6 +37,7 @@ NORM_ENTRANCE = {
 }
 
 XGB_MAPE       = 0.31  # GroupKFold CV продажа
+COMBINED_MAPE  = 0.27  # Combined α=0.05: лучшая оценка для плохого сценария
 RENT_XGB_MAPE  = 0.31  # GroupKFold CV аренда
 TERR_MAPE      = 0.35  # LOO-CV территориальная медиана (продажа и аренда)
 
@@ -433,11 +434,9 @@ with tab1:
             help="Итоговая цена = α × территориальная медиана + (1−α) × модель XGBoost"
         )
 
-        available_types = sorted(analogues["вид_объекта"].dropna().unique().tolist())
-        selected_types = st.multiselect(
-            "Тип объекта", available_types, default=available_types,
-        )
-        sale_ana = analogues[analogues["вид_объекта"].isin(selected_types)] if selected_types else analogues
+        available_types = ["Все"] + sorted(analogues["вид_объекта"].dropna().unique().tolist())
+        selected_type = st.selectbox("Тип объекта", available_types)
+        sale_ana = analogues if selected_type == "Все" else analogues[analogues["вид_объекта"] == selected_type]
 
         collected = []
         for _, lot in selected_lots.iterrows():
@@ -535,7 +534,7 @@ with tab1:
             final_price   = final_pm2 * lot_area if (final_pm2 and lot_area) else None
             upside_mln    = (final_price - auction_price) / 1e6 if (final_price and auction_price) else None
             upside_pct    = (final_price - auction_price) / auction_price * 100 if (final_price and auction_price) else None
-            pess_price    = final_pm2 * (1 - XGB_MAPE) * lot_area if (final_pm2 and lot_area) else None
+            pess_price    = final_pm2 * (1 - COMBINED_MAPE) * lot_area if (final_pm2 and lot_area) else None
             pess_upside_mln = (pess_price - auction_price) / 1e6 if (pess_price and auction_price) else None
 
             lot_stats.append({
@@ -585,7 +584,7 @@ with tab1:
                 up1.metric("Цена покупки", f"{s['auction_price']/1e6:.1f} млн ₽")
             if s["upside_mln"] is not None:
                 pess = s["pess_upside_mln"]
-                pess_str = f"при −{XGB_MAPE*100:.0f}%: {pess:+.1f} млн ₽" if pess is not None else ""
+                pess_str = f"при −{COMBINED_MAPE*100:.0f}%: {pess:+.1f} млн ₽" if pess is not None else ""
                 up2.metric("Upside (рынок − покупка)",
                            f"{s['upside_mln']:+.1f} млн ₽",
                            delta=pess_str,
@@ -610,7 +609,7 @@ with tab1:
                     "Итог всего, млн ₽": round(s["final_pm2"]*area/1e6, 1) if (s["final_pm2"] and area) else None,
                     "Upside, млн ₽": round(s["upside_mln"], 1) if s["upside_mln"] is not None else None,
                     "Upside, %": round(s["upside_pct"], 0) if s["upside_pct"] is not None else None,
-                    f"Upside −{XGB_MAPE*100:.0f}%, млн ₽": round(s["pess_upside_mln"], 1) if s["pess_upside_mln"] is not None else None,
+                    f"Upside −{COMBINED_MAPE*100:.0f}%, млн ₽": round(s["pess_upside_mln"], 1) if s["pess_upside_mln"] is not None else None,
                     "Жит. 500м": r500,
                     "≥10k жит.": "✓" if r500 >= 10_000 else "✗",
                 })
