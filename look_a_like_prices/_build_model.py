@@ -16,13 +16,20 @@ BUILDINGS  = 'C:/git/realrobot/look_a_like_prices/data/buildings_moscow.parquet'
 MODEL_DIR  = 'C:/git/realrobot/look_a_like_prices/data'
 
 NORM_ENTRANCE = {
+    # Яндекс (русские значения без направления)
+    'отдельный':         'отдельный',
+    'общий':             'общий',
+    # Яндекс и ЦИАН (с направлением)
     'отдельный с улицы': 'отдельный с улицы', 'separateFromTheStreet': 'отдельный с улицы',
     'separateFromStreet': 'отдельный с улицы',
     'отдельный со двора': 'отдельный со двора', 'separateFromTheYard': 'отдельный со двора',
-    'separateFromYard': 'отдельный со двора',
-    'commonFromStreet': 'общий с улицы', 'commonFromTheStreet': 'общий с улицы',
-    'commonFromYard': 'общий со двора', 'commonFromTheYard': 'общий со двора',
-    'throughEntrance': 'через подъезд', 'throughHall': 'через холл',
+    'separateFromYard':  'отдельный со двора',
+    'общий с улицы':     'общий с улицы',
+    'commonFromStreet':  'общий с улицы', 'commonFromTheStreet': 'общий с улицы',
+    'общий со двора':    'общий со двора',
+    'commonFromYard':    'общий со двора', 'commonFromTheYard': 'общий со двора',
+    'через подъезд':     'через подъезд', 'throughEntrance': 'через подъезд',
+    'через холл':        'через холл',    'throughHall':     'через холл',
 }
 
 def _parse_param(s, key):
