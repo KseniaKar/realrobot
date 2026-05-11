@@ -18,6 +18,8 @@ LOTS_PATH       = BASE_DIR.parent / "property_goals" / "investmoscow_sold_2022_2
 BUILDINGS_PATH  = BASE_DIR / "data" / "buildings_moscow.parquet"
 MODEL_PATH      = BASE_DIR / "data" / "hedonic_xgb.json"
 FEATURES_PATH   = BASE_DIR / "data" / "hedonic_features.json"
+RENT_MODEL_PATH    = BASE_DIR / "data" / "rent_xgb.json"
+RENT_FEATURES_PATH = BASE_DIR / "data" / "rent_features.json"
 
 NORM_ENTRANCE = {
     'отдельный':          'отдельный',
@@ -34,8 +36,9 @@ NORM_ENTRANCE = {
     'через холл':         'через холл',    'throughHall':     'через холл',
 }
 
-XGB_MAPE  = 0.31  # GroupKFold CV, обновлять после переобучения
-TERR_MAPE = 0.35  # LOO-CV территориальная медиана (продажа и аренда)
+XGB_MAPE       = 0.31  # GroupKFold CV продажа
+RENT_XGB_MAPE  = 0.31  # GroupKFold CV аренда
+TERR_MAPE      = 0.35  # LOO-CV территориальная медиана (продажа и аренда)
 
 _FLOOR_LOT = {
     "подвал": "цоколь", "цоколь": "цоколь", "-1": "цоколь", "-2": "цоколь",
@@ -62,6 +65,9 @@ _ENTRANCE_LOT = {
 _VID_LOT = {
     "свободное":      "Помещение свободного назначения",
     "бытовые услуги": "Торговое помещение",
+    "торговое":       "Торговое помещение",
+    "офис":           "Офисное помещение",
+    "офисное":        "Офисное помещение",
 }
 
 st.set_page_config(page_title="Аналоги продажи", layout="wide")
@@ -165,6 +171,17 @@ def load_model():
     return booster, feature_cols
 
 
+@st.cache_data
+def load_rent_model():
+    if not RENT_MODEL_PATH.exists():
+        return None, None
+    booster = xgb.Booster()
+    booster.load_model(str(RENT_MODEL_PATH))
+    with open(RENT_FEATURES_PATH, encoding="utf-8") as fh:
+        feature_cols = json.load(fh)
+    return booster, feature_cols
+
+
 KREMLIN_LAT, KREMLIN_LON = 55.7520, 37.6175
 
 _ВХОД_ОТДЕЛЬНЫЙ = {'отдельный', 'отдельный с улицы', 'отдельный со двора'}
@@ -192,6 +209,46 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
         row["rent_count_700m"] = float(rent_count_700m)
     if "sale_count_700m" in row:
         row["sale_count_700m"] = float(sale_count_700m)
+    row["lat"] = float(lot["latitude"])
+    row["lng"] = float(lot["longitude"])
+    if "dist_kremlin" in row:
+        row["dist_kremlin"] = haversine_m(KREMLIN_LAT, KREMLIN_LON,
+                                          float(lot["latitude"]), float(lot["longitude"]))
+    if floor and f"этаж_{floor}" in row:
+        row[f"этаж_{floor}"] = 1.0
+    if "вход_отдельный_any" in row and entrance in _ВХОД_ОТДЕЛЬНЫЙ:
+        row["вход_отдельный_any"] = 1.0
+    if "вход_общий_any" in row and entrance in _ВХОД_ОБЩИЙ:
+        row["вход_общий_any"] = 1.0
+    if vid and f"вид_{vid}" in row:
+        row[f"вид_{vid}"] = 1.0
+
+    X = np.array([[row[c] for c in feature_cols]], dtype=np.float32)
+    dm = xgb.DMatrix(X, feature_names=feature_cols)
+    log_pred = booster.predict(dm)[0]
+    return float(np.exp(log_pred))
+
+
+def predict_rent_pm2(booster, feature_cols, lot, apt_400, apt_800,
+                     median_sale_700m=np.nan, median_sale_1500m=np.nan,
+                     sale_count_700m=0, rent_count_700m=0):
+    floor    = _norm_floor_lot(str(lot.get("этаж", "")))
+    entrance = _ENTRANCE_LOT.get(str(lot.get("тип_входа", "")).strip().lower())
+    vid      = _VID_LOT.get(str(lot.get("функциональное_назначение", "")).strip().lower())
+
+    row = {c: 0.0 for c in feature_cols}
+    row["площадь"]  = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else np.nan
+    row["до_метро"] = np.nan
+    row["apt_400"]  = float(apt_400)
+    row["apt_800"]  = float(apt_800)
+    if "median_sale_700m" in row:
+        row["median_sale_700m"]  = float(median_sale_700m)  if np.isfinite(float(median_sale_700m or 0)) else 0.0
+    if "median_sale_1500m" in row:
+        row["median_sale_1500m"] = float(median_sale_1500m) if np.isfinite(float(median_sale_1500m or 0)) else 0.0
+    if "sale_count_700m" in row:
+        row["sale_count_700m"]   = float(sale_count_700m)
+    if "rent_count_700m" in row:
+        row["rent_count_700m"]   = float(rent_count_700m)
     row["lat"] = float(lot["latitude"])
     row["lng"] = float(lot["longitude"])
     if "dist_kremlin" in row:
@@ -455,8 +512,12 @@ with tab1:
             else:
                 med_rent_same = med_rent_700
 
-            sale_dists   = haversine_vec(lat_, lon_, sale_ana["lat"].values, sale_ana["lng"].values)
-            sale_cnt_700 = int((sale_dists <= 700).sum())
+            sale_dists    = haversine_vec(lat_, lon_, sale_ana["lat"].values, sale_ana["lng"].values)
+            sale_cnt_700  = int((sale_dists <= 700).sum())
+            sale_near_700  = sale_ana[sale_dists <= 700]["цена_за_м²"].dropna()
+            sale_near_1500 = sale_ana[sale_dists <= 1500]["цена_за_м²"].dropna()
+            med_sale_700   = float(sale_near_700.median())  if len(sale_near_700)  >= 2 else np.nan
+            med_sale_1500  = float(sale_near_1500.median()) if len(sale_near_1500) >= 2 else np.nan
             model_pm2 = predict_price_m2(
                 hedge_model, hedge_features, lot, a400, a800,
                 med_rent_700, med_rent_same, med_rent_1500, rent_cnt_700, sale_cnt_700,
@@ -490,6 +551,11 @@ with tab1:
                 "upside_mln": upside_mln,
                 "upside_pct": upside_pct,
                 "pess_upside_mln": pess_upside_mln,
+                # данные для модели аренды
+                "med_sale_700": med_sale_700,
+                "med_sale_1500": med_sale_1500,
+                "sale_cnt_700": sale_cnt_700,
+                "rent_cnt_700": rent_cnt_700,
             })
 
         mc4.metric("Квартир в радиусе", f"{total_apts:,}".replace(",", " "))
@@ -699,34 +765,53 @@ with tab2:
         else:
             all_rent_nearby = pd.DataFrame()
 
+        _ls_by_lot = {x["лот"]: x for x in lot_stats}
+        rent_model, rent_features = load_rent_model()
+
         rent_stats = []
         for _, lot in selected_lots.iterrows():
-            lot_lat = float(lot["latitude"])
-            lot_lon = float(lot["longitude"])
+            lot_lat  = float(lot["latitude"])
+            lot_lon  = float(lot["longitude"])
             lot_area = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else None
             lot_floor = _norm_floor_lot(str(lot.get("этаж", "")))
+            lot_label = f"№{lot['номер_лота']}"
             terr_rent_pm2, n_rent = territorial_rent(
                 lot_lat, lot_lon, lot_floor,
                 lot_area if use_area_filter else None,
                 rent_analogues, radius_m,
             )
+            ls = _ls_by_lot.get(lot_label, {})
+            model_rent_pm2 = None
+            if rent_model:
+                model_rent_pm2 = predict_rent_pm2(
+                    rent_model, rent_features, lot,
+                    ls.get("apt_400", 0), ls.get("apt_800", 0),
+                    ls.get("med_sale_700", np.nan), ls.get("med_sale_1500", np.nan),
+                    ls.get("sale_cnt_700", 0), ls.get("rent_cnt_700", 0),
+                )
             rent_stats.append({
-                "лот": f"№{lot['номер_лота']}",
+                "лот": lot_label,
                 "площадь": lot_area,
                 "аукцион_руб": float(lot["итоговая_цена_руб"]) if pd.notna(lot.get("итоговая_цена_руб")) else None,
                 "terr_rent_pm2": terr_rent_pm2,
                 "n_rent": n_rent,
+                "model_rent_pm2": model_rent_pm2,
             })
 
-        rm1, rm2, rm3 = st.columns(3)
+        rm1, rm2, rm3, rm4 = st.columns(4)
         rm1.metric("Аналогов аренды", len(all_rent_nearby))
         if not all_rent_nearby.empty and all_rent_nearby["цена_за_м²_мес"].notna().any():
             med_rent = all_rent_nearby["цена_за_м²_мес"].median()
             rm2.metric("Медиана аренды/м²/мес", f"{med_rent:.0f} руб/м²/мес")
         if len(rent_stats) == 1:
             s = rent_stats[0]
-            label_n = f"Территориальная ставка (n={s['n_rent']})"
+            label_n = f"Территориальная (n={s['n_rent']})"
             rm3.metric(label_n, f"{s['terr_rent_pm2']:.0f} руб/м²/мес" if s["terr_rent_pm2"] else "—")
+            if s["model_rent_pm2"]:
+                pess_r = s["model_rent_pm2"] * (1 - RENT_XGB_MAPE)
+                rm4.metric("XGBoost модель", f"{s['model_rent_pm2']:.0f} руб/м²/мес",
+                           delta=f"при −{RENT_XGB_MAPE*100:.0f}%: {pess_r:.0f}",
+                           delta_color="normal")
 
         # Окупаемость
         st.divider()
@@ -739,25 +824,44 @@ with tab2:
                 reno_tr_pm2 = st.slider("Себестоимость ремонта, тр/м²", 0, 500, 300, step=50)
             area = s["площадь"]
             auction_price = s["аукцион_руб"]
-            rent_pm2 = s["terr_rent_pm2"]
+            # предпочитаем модель — MAPE 31% vs 44.6% у территориальной
+            rent_pm2_model = s["model_rent_pm2"]
+            rent_pm2_terr  = s["terr_rent_pm2"]
+            rent_pm2 = rent_pm2_model or rent_pm2_terr
+            rent_mape = RENT_XGB_MAPE if rent_pm2_model else TERR_MAPE
+            rent_source = "XGBoost" if rent_pm2_model else f"территориальная (n={s['n_rent']})"
+            final_pm2 = _ls_by_lot.get(s["лот"], {}).get("final_pm2")
             if area and auction_price and rent_pm2:
                 reno_total = reno_tr_pm2 * 1_000 * area
                 total_invest = auction_price + reno_total
                 annual_rent = rent_pm2 * area * 12
                 payback_yrs = total_invest / annual_rent if annual_rent > 0 else None
-                pess_rent = rent_pm2 * (1 - TERR_MAPE)
+                pess_rent   = rent_pm2 * (1 - rent_mape)
                 pess_payback = total_invest / (pess_rent * area * 12) if pess_rent > 0 else None
                 pc1, pc2, pc3, pc4 = st.columns(4)
                 pc1.metric("Цена покупки", f"{auction_price/1e6:.1f} млн руб")
                 pc2.metric("Ремонт", f"{reno_total/1e6:.1f} млн руб")
                 pc3.metric("Итого инвестиций", f"{total_invest/1e6:.1f} млн руб")
-                pess_delta = f"при −{TERR_MAPE*100:.0f}%: {pess_payback:.1f} лет" if pess_payback else None
+                pess_delta = f"при −{rent_mape*100:.0f}%: {pess_payback:.1f} лет" if pess_payback else None
                 pc4.metric("Срок окупаемости", f"{payback_yrs:.1f} лет" if payback_yrs else "—",
                            delta=pess_delta, delta_color="inverse")
                 st.caption(
-                    f"Годовой доход от аренды: {annual_rent/1e6:.2f} млн руб "
-                    f"({rent_pm2:.0f} руб/м²/мес x {area:.0f} м2 x 12 мес)"
+                    f"Ставка ({rent_source}): {rent_pm2:.0f} руб/м²/мес · "
+                    f"Годовой доход: {annual_rent/1e6:.2f} млн руб "
+                    f"({rent_pm2:.0f} × {area:.0f} м² × 12)"
                 )
+                # Market-price row
+                if final_pm2:
+                    market_price   = final_pm2 * area
+                    cap_rate_auc   = (rent_pm2 * 12) / (auction_price / area) * 100
+                    cap_rate_mkt   = (rent_pm2 * 12) / final_pm2 * 100
+                    market_invest  = market_price + reno_total
+                    market_payback = market_invest / annual_rent if annual_rent > 0 else None
+                    pr1, pr2, pr3, pr4 = st.columns(4)
+                    pr1.metric("Рыночная цена (модель)", f"{market_price/1e6:.1f} млн руб")
+                    pr2.metric("Cap rate (аукцион)", f"{cap_rate_auc:.1f}%")
+                    pr3.metric("Cap rate (рынок)", f"{cap_rate_mkt:.1f}%")
+                    pr4.metric("Окупаемость (рынок)", f"{market_payback:.1f} лет" if market_payback else "—")
             else:
                 missing = []
                 if not area: missing.append("площадь лота")
@@ -770,25 +874,42 @@ with tab2:
             for s in rent_stats:
                 area = s["площадь"]
                 auction_price = s["аукцион_руб"]
-                rent_pm2 = s["terr_rent_pm2"]
+                rent_pm2_model = s["model_rent_pm2"]
+                rent_pm2_terr  = s["terr_rent_pm2"]
+                rent_pm2  = rent_pm2_model or rent_pm2_terr
+                rent_mape = RENT_XGB_MAPE if rent_pm2_model else TERR_MAPE
+                final_pm2 = _ls_by_lot.get(s["лот"], {}).get("final_pm2")
                 if area and auction_price and rent_pm2:
                     reno_total = reno_tr_pm2 * 1_000 * area
                     total_invest = auction_price + reno_total
                     annual_rent = rent_pm2 * area * 12
                     payback_yrs = total_invest / annual_rent if annual_rent > 0 else None
-                    pess_rent = rent_pm2 * (1 - TERR_MAPE)
+                    pess_rent   = rent_pm2 * (1 - rent_mape)
                     pess_payback = total_invest / (pess_rent * area * 12) if pess_rent > 0 else None
                 else:
                     reno_total = total_invest = annual_rent = payback_yrs = pess_payback = None
+                if final_pm2 and area and rent_pm2:
+                    market_price   = final_pm2 * area
+                    cap_rate_auc   = (rent_pm2 * 12) / (auction_price / area) * 100 if auction_price else None
+                    cap_rate_mkt   = (rent_pm2 * 12) / final_pm2 * 100
+                    market_invest  = market_price + (reno_total or 0)
+                    market_payback = market_invest / annual_rent if annual_rent else None
+                else:
+                    market_price = cap_rate_auc = cap_rate_mkt = market_invest = market_payback = None
                 payback_rows.append({
                     "Лот": s["лот"],
                     "Площадь, м²": round(area, 0) if area else None,
                     "Цена покупки, млн": round(auction_price / 1e6, 1) if auction_price else None,
                     "Ремонт, млн": round(reno_total / 1e6, 1) if reno_total else None,
                     "Инвестиции, млн": round(total_invest / 1e6, 1) if total_invest else None,
-                    "Аренда/м²/мес": round(rent_pm2, 0) if rent_pm2 else None,
+                    "Аренда/м²/мес (XGB)": round(rent_pm2_model, 0) if rent_pm2_model else None,
+                    "Аренда/м²/мес (терр)": round(rent_pm2_terr, 0) if rent_pm2_terr else None,
                     "Окупаемость, лет": round(payback_yrs, 1) if payback_yrs else None,
-                    f"Окупаемость −{TERR_MAPE*100:.0f}%, лет": round(pess_payback, 1) if pess_payback else None,
+                    f"Окупаемость −{rent_mape*100:.0f}%, лет": round(pess_payback, 1) if pess_payback else None,
+                    "Рыночная цена, млн": round(market_price / 1e6, 1) if market_price else None,
+                    "Cap rate (аукцион),%": round(cap_rate_auc, 1) if cap_rate_auc else None,
+                    "Cap rate (рынок),%": round(cap_rate_mkt, 1) if cap_rate_mkt else None,
+                    "Окупаемость (рынок), лет": round(market_payback, 1) if market_payback else None,
                 })
             st.dataframe(pd.DataFrame(payback_rows), hide_index=True, use_container_width=True)
 
