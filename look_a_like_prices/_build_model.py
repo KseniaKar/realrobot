@@ -159,12 +159,21 @@ terr_err = (terr_preds[terr_mask] - pm2[terr_mask]) / pm2[terr_mask]
 print(f'  Покрытие: {terr_mask.sum()}/{len(df_valid)} ({terr_mask.mean()*100:.0f}%)')
 print(f'  MAPE territorial: {np.abs(terr_err).mean()*100:.1f}%')
 
-# ── 5-fold CV XGBoost ──────────────────────────────────────────────────────────
-print('\n5-fold CV XGBoost...')
-from sklearn.model_selection import KFold
+# ── GroupKFold CV XGBoost (группа = coord_50м + этаж) ─────────────────────────
+# объекты одного здания + одного этажа всегда в одном фолде -> нет утечки
+print('\nGroupKFold CV XGBoost (coord_50m + этаж)...')
+from sklearn.model_selection import GroupKFold
 
 X_arr = X.values
 log_y = np.log(y)
+
+groups = (
+    (df_valid['lat'] * 2000).round().astype(int).astype(str) + '_' +
+    (df_valid['lng'] * 2000).round().astype(int).astype(str) + '_' +
+    df_valid['этаж_норм'].fillna('unknown')
+).values
+n_groups = len(set(groups))
+print(f'  Уникальных групп: {n_groups} (объектов: {len(y)})')
 
 xgb_params = dict(
     n_estimators=400, max_depth=5, learning_rate=0.05,
@@ -173,9 +182,9 @@ xgb_params = dict(
 )
 
 feat_preds = np.full(len(y), np.nan)
-kf = KFold(n_splits=5, shuffle=True, random_state=42)
-for fold, (tr_idx, val_idx) in enumerate(kf.split(X_arr)):
-    print(f'  Fold {fold+1}/5...')
+gkf = GroupKFold(n_splits=5)
+for fold, (tr_idx, val_idx) in enumerate(gkf.split(X_arr, log_y, groups)):
+    print(f'  Fold {fold+1}/5: train={len(tr_idx)}, val={len(val_idx)}')
     model = XGBRegressor(**xgb_params)
     model.fit(X_arr[tr_idx], log_y[tr_idx])
     feat_preds[val_idx] = np.exp(model.predict(X_arr[val_idx]))

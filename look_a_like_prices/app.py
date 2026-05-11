@@ -11,12 +11,13 @@ from streamlit_folium import st_folium
 import xgboost as xgb
 
 BASE_DIR = Path(__file__).resolve().parent
-ANALOGUES_PATH = BASE_DIR / "data" / "sale.csv" / "sale.csv"
-ENTRANCE_PATH = BASE_DIR / "_entrance_results.csv"
-LOTS_PATH = BASE_DIR.parent / "property_goals" / "investmoscow_sold_2022_2026_enriched_geo.csv"
-BUILDINGS_PATH = BASE_DIR / "data" / "buildings_moscow.parquet"
-MODEL_PATH = BASE_DIR / "data" / "hedonic_xgb.json"
-FEATURES_PATH = BASE_DIR / "data" / "hedonic_features.json"
+ANALOGUES_PATH  = BASE_DIR / "data" / "sale_dedup.csv"
+ARENDA_PATH     = BASE_DIR / "data" / "arenda_dedup.csv"
+ENTRANCE_PATH   = BASE_DIR / "_entrance_results.csv"
+LOTS_PATH       = BASE_DIR.parent / "property_goals" / "investmoscow_sold_2022_2026_enriched_geo.csv"
+BUILDINGS_PATH  = BASE_DIR / "data" / "buildings_moscow.parquet"
+MODEL_PATH      = BASE_DIR / "data" / "hedonic_xgb.json"
+FEATURES_PATH   = BASE_DIR / "data" / "hedonic_features.json"
 
 NORM_ENTRANCE = {
     'отдельный с улицы': 'отдельный с улицы', 'separateFromTheStreet': 'отдельный с улицы',
@@ -114,7 +115,7 @@ def normalize_floor(s):
 
 @st.cache_data
 def load_analogues():
-    df = pd.read_csv(str(ANALOGUES_PATH), sep=";")
+    df = pd.read_csv(str(ANALOGUES_PATH), sep=";", encoding="utf-8-sig")
     df["площадь"] = df.apply(_get_area, axis=1)
     df["цена"] = pd.to_numeric(df["Цена"], errors="coerce")
     df["цена_млн"] = df["цена"] / 1_000_000
@@ -250,58 +251,87 @@ def compute_loo_cv(_df, n_rows, radius_m=700, area_pct=50):
     return pd.DataFrame(results)
 
 
+@st.cache_data
+def load_rent_analogues():
+    df = pd.read_csv(str(ARENDA_PATH), sep=";", encoding="utf-8-sig")
+    df["площадь"] = df.apply(_get_area, axis=1)
+    df["цена"]    = pd.to_numeric(df["Цена"], errors="coerce")
+    df["цена_за_м²_мес"] = np.where(
+        df["площадь"].fillna(0) > 0, df["цена"] / df["площадь"], np.nan
+    )
+    df["этаж"]       = df["Доп.параметры"].apply(lambda x: _parse_param(x, "Этаж"))
+    df["этаж_норм"]  = df["этаж"].apply(normalize_floor)
+    df["вид_объекта"]= df["Доп.параметры"].apply(lambda x: _parse_param(x, "Вид объекта"))
+    df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
+    df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
+    df = df.dropna(subset=["lat", "lng", "цена", "площадь"]).copy()
+    # убираем выбросы
+    exclude = {"Здание", "Коммерческая земля", "Складское помещение",
+               "Производственное помещение", "Гостиница"}
+    df = df[~df["вид_объекта"].isin(exclude)].copy()
+    df = df[(df["цена_за_м²_мес"] >= 200) & (df["цена_за_м²_мес"] <= 100_000)].copy()
+    return df.reset_index(drop=True)
+
+
+def territorial_rent(lot_lat, lot_lon, lot_floor_norm, lot_area, rent_df, radius_m):
+    dists = haversine_vec(lot_lat, lot_lon, rent_df["lat"].values, rent_df["lng"].values)
+    mask  = (dists <= radius_m) & rent_df["цена_за_м²_мес"].notna()
+    if lot_floor_norm:
+        mask &= rent_df["этаж_норм"].values == lot_floor_norm
+    if lot_area and lot_area > 0:
+        mask &= (rent_df["площадь"].values >= lot_area * 0.5) & \
+                (rent_df["площадь"].values <= lot_area * 1.5)
+    sub = rent_df[mask]
+    if len(sub) < 2:
+        return None, len(sub)
+    return float(sub["цена_за_м²_мес"].median()), len(sub)
+
+
 analogues = load_analogues()
+rent_analogues = load_rent_analogues()
 lots = load_lots()
 buildings = load_buildings()
 hedge_model, hedge_features = load_model()
 
-st.title("Аналоги продажи")
-st.caption(
-    "Подбор объявлений о продаже коммерческой недвижимости для лотов на торгах "
-    "(ЦИАН + Яндекс.Недвижимость, снимок 24–25 февраля 2026, 1 164 объявления)"
+st.title("Аналоги недвижимости")
+
+lot_labels = (
+    "№" + lots["номер_лота"].astype(str)
+    + " — " + lots["адрес"].fillna("")
+    + lots["площадь_м²"].apply(lambda x: f" ({x:.0f} м²)" if pd.notna(x) else "")
+)
+label_to_idx = dict(zip(lot_labels, lots.index))
+
+selected_labels = st.multiselect(
+    "Выберите лоты (один или несколько)",
+    lot_labels.tolist(),
+    max_selections=20,
 )
 
-tab1, tab2 = st.tabs(["Подбор аналогов", "Точность метода"])
+if selected_labels:
+    selected_lots = lots.loc[[label_to_idx[l] for l in selected_labels]].copy()
+
+    fcol1, fcol2, fcol3 = st.columns(3)
+    with fcol1:
+        radius_m = st.slider("Радиус поиска, м", 100, 3000, 700, step=100)
+    with fcol2:
+        use_area_filter = st.checkbox(
+            "Фильтр по площади", value=(len(selected_lots) == 1)
+        )
+    with fcol3:
+        area_pct = st.slider("Диапазон площади ±%", 10, 100, 50, step=10) if use_area_filter else 50
+
+tab1, tab2, tab3 = st.tabs(["Продажа — аналоги", "Аренда + окупаемость", "Точность метода"])
 
 # ── Вкладка 1 ─────────────────────────────────────────────────────────────────
 with tab1:
-    lot_labels = (
-        "№"
-        + lots["номер_лота"].astype(str)
-        + " — "
-        + lots["адрес"].fillna("")
-        + lots["площадь_м²"].apply(lambda x: f" ({x:.0f} м²)" if pd.notna(x) else "")
-    )
-    label_to_idx = dict(zip(lot_labels, lots.index))
-
-    selected_labels = st.multiselect(
-        "Выберите лоты (один или несколько)",
-        lot_labels.tolist(),
-        max_selections=20,
-    )
-
     if not selected_labels:
-        st.info("Выберите хотя бы один лот выше.")
+        st.info("Выберите лот выше.")
     else:
-        selected_lots = lots.loc[[label_to_idx[l] for l in selected_labels]].copy()
-
-        fcol1, fcol2, fcol3, fcol4 = st.columns(4)
-        with fcol1:
-            radius_m = st.slider("Радиус поиска, м", 100, 3000, 700, step=100)
-        with fcol2:
-            use_area_filter = st.checkbox(
-                "Фильтр по площади", value=(len(selected_lots) == 1)
-            )
-        with fcol3:
-            if use_area_filter:
-                area_pct = st.slider("Диапазон площади ±%", 10, 100, 50, step=10)
-            else:
-                area_pct = 50
-        with fcol4:
-            alpha = st.slider(
-                "α (территориальная доля)", 0.0, 1.0, 0.1, step=0.05,
-                help="Итоговая цена = α × территориальная медиана + (1−α) × модель XGBoost"
-            )
+        alpha = st.slider(
+            "α (территориальная доля)", 0.0, 1.0, 0.1, step=0.05,
+            help="Итоговая цена = α × территориальная медиана + (1−α) × модель XGBoost"
+        )
 
         collected = []
         for _, lot in selected_lots.iterrows():
@@ -520,13 +550,214 @@ with tab1:
         else:
             st.info("Аналогов не найдено. Увеличьте радиус или снимите фильтр по площади.")
 
-# ── Вкладка 2: LOO-CV ─────────────────────────────────────────────────────────
+# ── Вкладка 2: Аренда + окупаемость ──────────────────────────────────────────
 with tab2:
+    if not selected_labels:
+        st.info("Выберите лот выше.")
+    else:
+        rent_collected = []
+        for _, lot in selected_lots.iterrows():
+            lot_lat = float(lot["latitude"])
+            lot_lon = float(lot["longitude"])
+            lot_area = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else None
+            lot_num = lot["номер_лота"]
+
+            rana = rent_analogues.copy()
+            rana["расстояние_м"] = haversine_vec(
+                lot_lat, lot_lon, rana["lat"].values, rana["lng"].values
+            )
+            rana = rana[rana["расстояние_м"] <= radius_m].copy()
+
+            if use_area_filter and lot_area and lot_area > 0:
+                lo = lot_area * (1 - area_pct / 100)
+                hi = lot_area * (1 + area_pct / 100)
+                rana = rana[rana["площадь"].between(lo, hi) | rana["площадь"].isna()]
+
+            rana["лот"] = f"№{lot_num}"
+            rent_collected.append(rana)
+
+        if rent_collected:
+            all_rent_nearby = pd.concat(rent_collected, ignore_index=True)
+            all_rent_nearby = (
+                all_rent_nearby.sort_values("расстояние_м")
+                .drop_duplicates(subset=["URL"], keep="first")
+                .reset_index(drop=True)
+            )
+        else:
+            all_rent_nearby = pd.DataFrame()
+
+        rent_stats = []
+        for _, lot in selected_lots.iterrows():
+            lot_lat = float(lot["latitude"])
+            lot_lon = float(lot["longitude"])
+            lot_area = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else None
+            lot_floor = _norm_floor_lot(str(lot.get("этаж", "")))
+            terr_rent_pm2, n_rent = territorial_rent(
+                lot_lat, lot_lon, lot_floor,
+                lot_area if use_area_filter else None,
+                rent_analogues, radius_m,
+            )
+            rent_stats.append({
+                "лот": f"№{lot['номер_лота']}",
+                "площадь": lot_area,
+                "аукцион_руб": float(lot["итоговая_цена_руб"]) if pd.notna(lot.get("итоговая_цена_руб")) else None,
+                "terr_rent_pm2": terr_rent_pm2,
+                "n_rent": n_rent,
+            })
+
+        rm1, rm2, rm3 = st.columns(3)
+        rm1.metric("Аналогов аренды", len(all_rent_nearby))
+        if not all_rent_nearby.empty and all_rent_nearby["цена_за_м²_мес"].notna().any():
+            med_rent = all_rent_nearby["цена_за_м²_мес"].median()
+            rm2.metric("Медиана аренды/м²/мес", f"{med_rent:.0f} руб/м²/мес")
+        if len(rent_stats) == 1:
+            s = rent_stats[0]
+            label_n = f"Территориальная ставка (n={s['n_rent']})"
+            rm3.metric(label_n, f"{s['terr_rent_pm2']:.0f} руб/м²/мес" if s["terr_rent_pm2"] else "—")
+
+        # Окупаемость
+        st.divider()
+        st.subheader("Окупаемость")
+
+        if len(rent_stats) == 1:
+            s = rent_stats[0]
+            reno_col, _ = st.columns([1, 2])
+            with reno_col:
+                reno_tr_pm2 = st.slider("Себестоимость ремонта, тр/м²", 0, 500, 300, step=50)
+            area = s["площадь"]
+            auction_price = s["аукцион_руб"]
+            rent_pm2 = s["terr_rent_pm2"]
+            if area and auction_price and rent_pm2:
+                reno_total = reno_tr_pm2 * 1_000 * area
+                total_invest = auction_price + reno_total
+                annual_rent = rent_pm2 * area * 12
+                payback_yrs = total_invest / annual_rent if annual_rent > 0 else None
+                pc1, pc2, pc3, pc4 = st.columns(4)
+                pc1.metric("Цена покупки", f"{auction_price/1e6:.1f} млн руб")
+                pc2.metric("Ремонт", f"{reno_total/1e6:.1f} млн руб")
+                pc3.metric("Итого инвестиций", f"{total_invest/1e6:.1f} млн руб")
+                pc4.metric("Срок окупаемости", f"{payback_yrs:.1f} лет" if payback_yrs else "—")
+                st.caption(
+                    f"Годовой доход от аренды: {annual_rent/1e6:.2f} млн руб "
+                    f"({rent_pm2:.0f} руб/м²/мес x {area:.0f} м2 x 12 мес)"
+                )
+            else:
+                missing = []
+                if not area: missing.append("площадь лота")
+                if not auction_price: missing.append("цена покупки")
+                if not rent_pm2: missing.append("ставка аренды")
+                st.info(f"Недостаточно данных: {', '.join(missing)}.")
+        else:
+            reno_tr_pm2 = st.slider("Себестоимость ремонта, тр/м²", 0, 500, 300, step=50)
+            payback_rows = []
+            for s in rent_stats:
+                area = s["площадь"]
+                auction_price = s["аукцион_руб"]
+                rent_pm2 = s["terr_rent_pm2"]
+                if area and auction_price and rent_pm2:
+                    reno_total = reno_tr_pm2 * 1_000 * area
+                    total_invest = auction_price + reno_total
+                    annual_rent = rent_pm2 * area * 12
+                    payback_yrs = total_invest / annual_rent if annual_rent > 0 else None
+                else:
+                    reno_total = total_invest = annual_rent = payback_yrs = None
+                payback_rows.append({
+                    "Лот": s["лот"],
+                    "Площадь, м²": round(area, 0) if area else None,
+                    "Цена покупки, млн": round(auction_price / 1e6, 1) if auction_price else None,
+                    "Ремонт, млн": round(reno_total / 1e6, 1) if reno_total else None,
+                    "Инвестиции, млн": round(total_invest / 1e6, 1) if total_invest else None,
+                    "Аренда/м²/мес": round(rent_pm2, 0) if rent_pm2 else None,
+                    "Окупаемость, лет": round(payback_yrs, 1) if payback_yrs else None,
+                })
+            st.dataframe(pd.DataFrame(payback_rows), hide_index=True, use_container_width=True)
+
+        # Карта аренды
+        st.divider()
+        center_lat = selected_lots["latitude"].mean()
+        center_lon = selected_lots["longitude"].mean()
+        zoom = 15 if len(selected_lots) == 1 else 12
+        m_rent = folium.Map(
+            location=[center_lat, center_lon], zoom_start=zoom, tiles="CartoDB positron"
+        )
+        for _, lot in selected_lots.iterrows():
+            lot_lat = float(lot["latitude"])
+            lot_lon = float(lot["longitude"])
+            folium.Circle(
+                location=[lot_lat, lot_lon],
+                radius=radius_m,
+                color="#dc2626", fill=False, weight=1, opacity=0.4,
+            ).add_to(m_rent)
+            folium.Marker(
+                location=[lot_lat, lot_lon],
+                popup=folium.Popup(
+                    f"<b>Лот #{lot['номер_лота']}</b><br>{lot['адрес']}", max_width=280
+                ),
+                icon=folium.Icon(color="red", icon="home"),
+            ).add_to(m_rent)
+
+        if not all_rent_nearby.empty:
+            for _, row in all_rent_nearby.iterrows():
+                pm2_str = f"{row['цена_за_м²_мес']:.0f} руб/м²/мес" if pd.notna(row["цена_за_м²_мес"]) else "—"
+                area_str = f"{row['площадь']:.0f} м²" if pd.notna(row["площадь"]) else "—"
+                цена_str = f"{row['цена']/1000:.0f} тр/мес" if pd.notna(row.get("цена")) else "—"
+                addr_str = row.get("Адрес", row.get("Название", "—")) or "—"
+                popup_html = (
+                    f"<div style='font-family:Arial;min-width:220px;font-size:13px;line-height:1.5;'>"
+                    f"<b>{addr_str}</b><br>"
+                    f"Площадь: {area_str}<br>"
+                    f"Аренда: {цена_str}<br>"
+                    f"Ставка: {pm2_str}<br>"
+                    f"Этаж: {row['этаж'] or '—'}<br>"
+                    f"До лота: {row['расстояние_м']:.0f} м<br>"
+                    f"<a href='{row['URL']}' target='_blank'>Открыть</a>"
+                    f"</div>"
+                )
+                folium.CircleMarker(
+                    location=[row["lat"], row["lng"]],
+                    radius=7,
+                    color="#16a34a", fill=True, fill_color="#16a34a", fill_opacity=0.7,
+                    popup=folium.Popup(popup_html, max_width=300),
+                    weight=1.5,
+                ).add_to(m_rent)
+
+        st_folium(m_rent, width=None, height=520, returned_objects=[])
+
+        # Таблица аренды
+        if not all_rent_nearby.empty:
+            rent_show_cols = [c for c in [
+                "лот", "Адрес", "площадь", "цена", "цена_за_м²_мес",
+                "этаж", "вид_объекта", "расстояние_м", "URL",
+            ] if c in all_rent_nearby.columns]
+            if len(selected_lots) == 1 and "лот" in rent_show_cols:
+                rent_show_cols = [c for c in rent_show_cols if c != "лот"]
+            st.dataframe(
+                all_rent_nearby[rent_show_cols],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "лот": "Лот",
+                    "Адрес": st.column_config.TextColumn("Адрес", width="large"),
+                    "площадь": st.column_config.NumberColumn("Площадь, м²", format="%.0f"),
+                    "цена": st.column_config.NumberColumn("Аренда/мес, руб", format="%.0f"),
+                    "цена_за_м²_мес": st.column_config.NumberColumn("руб/м²/мес", format="%.0f"),
+                    "этаж": "Этаж",
+                    "вид_объекта": "Вид объекта",
+                    "расстояние_м": st.column_config.NumberColumn("До лота, м", format="%.0f"),
+                    "URL": st.column_config.LinkColumn("Объявление", width="small"),
+                },
+            )
+        else:
+            st.info("Аналогов аренды не найдено. Увеличьте радиус или снимите фильтр по площади.")
+
+
+# ── Вкладка 3: Точность метода ────────────────────────────────────────────────
+with tab3:
     st.subheader("Точность метода: leave-one-out кросс-валидация")
     st.caption(
         "Для каждого объявления с известной площадью и этажом предсказываем цену/м² "
         "по медиане соседей того же этажа в заданном радиусе (исключая 100 м вокруг). "
-        "Ошибка = (предск. цена − факт. цена) / факт. цена."
+        "Ошибка = (предск. цена - факт. цена) / факт. цена."
     )
 
     cv_df = compute_loo_cv(analogues, len(analogues), radius_m=700, area_pct=50)
@@ -538,7 +769,7 @@ with tab2:
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Покрытие", f"{coverage:.0f}%",
-              help="Доля объектов, для которых нашлось ≥2 соседей того же этажа в 1 км")
+              help="Доля объектов, для которых нашлось >= 2 соседей того же этажа в 1 км")
     c2.metric("MAPE", f"{mape:.0f}%")
     c3.metric("Медиана ошибки", f"{median_err:+.0f}%")
     c4.metric("Объектов в CV", len(cv_df))
