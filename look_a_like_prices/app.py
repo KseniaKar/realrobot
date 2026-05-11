@@ -34,6 +34,8 @@ NORM_ENTRANCE = {
     'через холл':         'через холл',    'throughHall':     'через холл',
 }
 
+XGB_MAPE = 0.31  # GroupKFold CV, обновлять после переобучения
+
 _FLOOR_LOT = {
     "подвал": "цоколь", "цоколь": "цоколь", "-1": "цоколь", "-2": "цоколь",
     "1": "1", "1 этаж": "1",
@@ -412,6 +414,8 @@ with tab1:
             final_price   = final_pm2 * lot_area if (final_pm2 and lot_area) else None
             upside_mln    = (final_price - auction_price) / 1e6 if (final_price and auction_price) else None
             upside_pct    = (final_price - auction_price) / auction_price * 100 if (final_price and auction_price) else None
+            pess_price    = final_pm2 * (1 - XGB_MAPE) * lot_area if (final_pm2 and lot_area) else None
+            pess_upside_mln = (pess_price - auction_price) / 1e6 if (pess_price and auction_price) else None
 
             lot_stats.append({
                 "лот": f"№{lot['номер_лота']}",
@@ -425,6 +429,7 @@ with tab1:
                 "auction_price": auction_price,
                 "upside_mln": upside_mln,
                 "upside_pct": upside_pct,
+                "pess_upside_mln": pess_upside_mln,
             })
 
         mc4.metric("Квартир в радиусе", f"{total_apts:,}".replace(",", " "))
@@ -453,9 +458,12 @@ with tab1:
             if s["auction_price"]:
                 up1.metric("Цена покупки", f"{s['auction_price']/1e6:.1f} млн ₽")
             if s["upside_mln"] is not None:
-                color_delta = f"{s['upside_pct']:+.0f}%"
+                pess = s["pess_upside_mln"]
+                pess_str = f"при −{XGB_MAPE*100:.0f}%: {pess:+.1f} млн ₽" if pess is not None else ""
                 up2.metric("Upside (рынок − покупка)",
-                           f"{s['upside_mln']:+.1f} млн ₽", delta=color_delta)
+                           f"{s['upside_mln']:+.1f} млн ₽",
+                           delta=pess_str,
+                           delta_color="normal" if (pess is not None and pess > 0) else "inverse")
             r500 = s["residents_500"]
             pop_ok = r500 >= 10_000
             up3.metric("Жителей в 500м",
@@ -476,6 +484,7 @@ with tab1:
                     "Итог всего, млн ₽": round(s["final_pm2"]*area/1e6, 1) if (s["final_pm2"] and area) else None,
                     "Upside, млн ₽": round(s["upside_mln"], 1) if s["upside_mln"] is not None else None,
                     "Upside, %": round(s["upside_pct"], 0) if s["upside_pct"] is not None else None,
+                    f"Upside −{XGB_MAPE*100:.0f}%, млн ₽": round(s["pess_upside_mln"], 1) if s["pess_upside_mln"] is not None else None,
                     "Жит. 500м": r500,
                     "≥10k жит.": "✓" if r500 >= 10_000 else "✗",
                 })
