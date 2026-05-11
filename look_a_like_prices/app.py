@@ -350,6 +350,34 @@ def compute_loo_cv(_df, n_rows, radius_m=700, area_pct=50):
     return pd.DataFrame(results)
 
 
+def compute_loo_cv_rent(_df, n_rows, radius_m=700, area_pct=50):
+    valid = _df.dropna(subset=["площадь", "цена_за_м²_мес", "этаж_норм"]).copy()
+    valid = valid[valid["площадь"] > 0].reset_index(drop=True)
+
+    lats   = valid["lat"].values
+    lons   = valid["lng"].values
+    pm2    = valid["цена_за_м²_мес"].values
+    areas  = valid["площадь"].values
+    floors = valid["этаж_норм"].values
+
+    results = []
+    for i in range(len(valid)):
+        dists = haversine_vec(lats[i], lons[i], lats, lons)
+        neighbours = (dists > 100) & (floors == floors[i]) & (dists <= radius_m)
+        lo = areas[i] * (1 - area_pct / 100)
+        hi = areas[i] * (1 + area_pct / 100)
+        neighbours &= (areas >= lo) & (areas <= hi)
+        if neighbours.sum() < 2:
+            continue
+        pred = float(np.median(pm2[neighbours]))
+        rel_err = (pred - pm2[i]) / pm2[i]
+        results.append({"этаж": floors[i], "ошибка": rel_err,
+                        "предск_руб_м²_мес": pred, "факт_руб_м²_мес": pm2[i],
+                        "соседей": int(neighbours.sum())})
+
+    return pd.DataFrame(results)
+
+
 @st.cache_data
 def load_rent_analogues():
     df = pd.read_csv(str(ARENDA_PATH), sep=";", encoding="utf-8-sig")
@@ -993,27 +1021,8 @@ with tab2:
 
 
 # ── Вкладка 3: Точность метода ────────────────────────────────────────────────
-with tab3:
-    st.subheader("Точность метода")
 
-    st.markdown("**XGBoost — 5-fold GroupKFold** (объекты одного здания+этажа всегда в одном фолде) — для модели продажи и модели аренды")
-    xm1, xm2, xm3 = st.columns(3)
-    xm1.metric("MAPE XGBoost", "31%", help="Честная оценка: утечка по зданию исключена")
-    xm2.metric("MAPE Combined (α=0.05)", "27%")
-    xm3.metric("MAPE Территориальный", "35%")
-
-    st.divider()
-    st.markdown("**Территориальная медиана — LOO-CV** (каждый объект предсказывается соседями, "
-                "исключая 100 м вокруг себя)")
-    st.caption(
-        "Для каждого объявления с известной площадью и этажом предсказываем цену/м² "
-        "по медиане соседей того же этажа в радиусе 700 м. "
-        "Ошибка = (предск. цена - факт. цена) / факт. цена."
-    )
-
-    cv_df = compute_loo_cv(analogues, len(analogues), radius_m=700, area_pct=50)
-
-    total_valid = analogues.dropna(subset=["площадь", "цена_за_м²", "этаж_норм"]).shape[0]
+def _render_loo_cv_section(cv_df, total_valid, price_col_label, bar_color):
     coverage = len(cv_df) / total_valid * 100 if total_valid > 0 else 0
     mape = cv_df["ошибка"].abs().mean() * 100 if not cv_df.empty else 0
     median_err = cv_df["ошибка"].median() * 100 if not cv_df.empty else 0
@@ -1027,20 +1036,18 @@ with tab3:
 
     if not cv_df.empty:
         err_pct = (cv_df["ошибка"] * 100).clip(-100, 150)
-
         chart = (
             alt.Chart(pd.DataFrame({"ошибка_%": err_pct}))
-            .mark_bar(color="#2563eb", opacity=0.8)
+            .mark_bar(color=bar_color, opacity=0.8)
             .encode(
                 alt.X("ошибка_%:Q", bin=alt.Bin(step=10), title="Ошибка, %"),
                 alt.Y("count()", title="Количество объектов"),
             )
-            .properties(title="Распределение ошибок предсказания", height=320)
+            .properties(title=f"Распределение ошибок ({price_col_label})", height=280)
         )
         st.altair_chart(chart, use_container_width=True)
 
-        st.subheader("По этажам")
-
+        st.markdown("**По этажам**")
         floor_order = ["цоколь", "1", "2", "3+"]
 
         def floor_agg(grp):
@@ -1053,40 +1060,54 @@ with tab3:
                 "P75, %": round(e.quantile(0.75) * 100, 0),
             })
 
-        total_by_floor = (
-            analogues.dropna(subset=["площадь", "цена_за_м²", "этаж_норм"])
-            .groupby("этаж_норм").size().rename("Всего")
-            .reset_index().rename(columns={"этаж_норм": "Этаж"})
-        )
-
-        if cv_df.empty or "этаж" not in cv_df.columns:
-            cv_stats = pd.DataFrame(columns=["Этаж", "Объектов в CV", "MAPE, %", "Медиана, %", "P25, %", "P75, %"])
-        else:
+        if "этаж" in cv_df.columns:
             cv_stats = (
-                cv_df.groupby("этаж")
-                .apply(floor_agg)
-                .reset_index()
-                .rename(columns={"этаж": "Этаж"})
+                cv_df.groupby("этаж").apply(floor_agg)
+                .reset_index().rename(columns={"этаж": "Этаж"})
             )
+        else:
+            cv_stats = pd.DataFrame(columns=["Этаж", "Объектов в CV", "MAPE, %", "Медиана, %", "P25, %", "P75, %"])
 
-        floor_stats = (
-            pd.DataFrame({"Этаж": floor_order})
-            .merge(total_by_floor, on="Этаж", how="left")
-            .merge(cv_stats, on="Этаж", how="left")
-        )
-        floor_stats["Всего"] = floor_stats["Всего"].fillna(0).astype(int)
+        floor_stats = pd.DataFrame({"Этаж": floor_order}).merge(cv_stats, on="Этаж", how="left")
         floor_stats["Объектов в CV"] = floor_stats["Объектов в CV"].fillna(0).astype(int)
+        st.dataframe(floor_stats, hide_index=True, use_container_width=True,
+                     column_config={
+                         "Объектов в CV": st.column_config.NumberColumn("В CV"),
+                         "MAPE, %": st.column_config.NumberColumn(format="%.0f"),
+                         "Медиана, %": st.column_config.NumberColumn(format="%+.0f"),
+                         "P25, %": st.column_config.NumberColumn(format="%+.0f"),
+                         "P75, %": st.column_config.NumberColumn(format="%+.0f"),
+                     })
 
-        st.dataframe(
-            floor_stats,
-            hide_index=True,
-            use_container_width=True,
-            column_config={
-                "Всего": st.column_config.NumberColumn("Всего объявл."),
-                "Объектов в CV": st.column_config.NumberColumn("В CV"),
-                "MAPE, %": st.column_config.NumberColumn(format="%.0f"),
-                "Медиана, %": st.column_config.NumberColumn(format="%+.0f"),
-                "P25, %": st.column_config.NumberColumn(format="%+.0f"),
-                "P75, %": st.column_config.NumberColumn(format="%+.0f"),
-            },
-        )
+
+with tab3:
+    st.subheader("Точность метода")
+    st.markdown("**XGBoost — 5-fold GroupKFold** (объекты одного здания+этажа всегда в одном фолде) — для модели продажи и модели аренды")
+
+    # ── Продажа ────────────────────────────────────────────────────────────────
+    st.markdown("### Продажа")
+    xm1, xm2, xm3 = st.columns(3)
+    xm1.metric("MAPE XGBoost", "31%", help="Честная оценка: утечка по зданию исключена")
+    xm2.metric("MAPE Combined (α=0.05)", "27%")
+    xm3.metric("MAPE Территориальный", "35%")
+
+    st.markdown("**Территориальная медиана — LOO-CV**")
+    st.caption("Для каждого объявления предсказываем цену/м² по медиане соседей того же этажа в радиусе 700 м (исключая 100 м вокруг себя).")
+
+    cv_df = compute_loo_cv(analogues, len(analogues), radius_m=700, area_pct=50)
+    total_valid_sale = analogues.dropna(subset=["площадь", "цена_за_м²", "этаж_норм"]).shape[0]
+    _render_loo_cv_section(cv_df, total_valid_sale, "цена/м²", "#2563eb")
+
+    # ── Аренда ─────────────────────────────────────────────────────────────────
+    st.divider()
+    st.markdown("### Аренда")
+    rm1, rm2 = st.columns(2)
+    rm1.metric("MAPE XGBoost", "31%", help="Честная оценка: утечка по зданию исключена")
+    rm2.metric("MAPE Территориальный", "44.6%")
+
+    st.markdown("**Территориальная медиана — LOO-CV**")
+    st.caption("Для каждого объявления предсказываем ставку/м²/мес по медиане соседей того же этажа в радиусе 700 м (исключая 100 м вокруг себя).")
+
+    cv_rent_df = compute_loo_cv_rent(rent_analogues, len(rent_analogues), radius_m=700, area_pct=50)
+    total_valid_rent = rent_analogues.dropna(subset=["площадь", "цена_за_м²_мес", "этаж_норм"]).shape[0]
+    _render_loo_cv_section(cv_rent_df, total_valid_rent, "ставка/м²/мес", "#16a34a")
