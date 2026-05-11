@@ -10,7 +10,7 @@ import pandas as pd
 from sklearn.neighbors import BallTree
 from xgboost import XGBRegressor
 
-SALE_CSV   = 'C:/git/realrobot/look_a_like_prices/data/sale.csv/sale.csv'
+SALE_CSV   = 'C:/git/realrobot/look_a_like_prices/data/sale_dedup.csv'
 ENTRANCE   = 'C:/git/realrobot/look_a_like_prices/_entrance_results.csv'
 BUILDINGS  = 'C:/git/realrobot/look_a_like_prices/data/buildings_moscow.parquet'
 MODEL_DIR  = 'C:/git/realrobot/look_a_like_prices/data'
