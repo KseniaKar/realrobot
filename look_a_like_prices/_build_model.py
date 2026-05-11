@@ -78,7 +78,8 @@ df = pd.read_csv(SALE_CSV, sep=';')
 df['площадь'] = df.apply(_get_area, axis=1)
 df['цена'] = pd.to_numeric(df['Цена'], errors='coerce')
 df['цена_за_м2'] = np.where(df['площадь'].fillna(0) > 0, df['цена'] / df['площадь'], np.nan)
-df['этаж_норм'] = df['Доп.параметры'].apply(lambda x: _parse_param(x, 'Этаж')).apply(normalize_floor)
+df['этаж_норм']        = df['Доп.параметры'].apply(lambda x: _parse_param(x, 'Этаж')).apply(normalize_floor)
+df['этажность_здания'] = pd.to_numeric(df['Доп.параметры'].apply(lambda x: _parse_param(x, 'Этажность здания')), errors='coerce')
 df['до_метро'] = pd.to_numeric(df['Расстояние до метро, км'], errors='coerce')
 df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lng'] = pd.to_numeric(df['lng'], errors='coerce')
@@ -192,6 +193,7 @@ feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800',
                   'median_rent_700m', 'median_rent_700m_same_type', 'median_rent_1500m',
                   'rent_count_700m', 'sale_count_700m',
                   'dist_kremlin', 'lat', 'lng',
+                  'этажность_здания',
                   'вход_отдельный_any', 'вход_общий_any']
 X = pd.concat([df[feat_cols_base], floor_dummies, vid_dummies], axis=1).astype(float)
 y = df['цена_за_м2'].values

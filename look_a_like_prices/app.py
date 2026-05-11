@@ -36,9 +36,9 @@ NORM_ENTRANCE = {
     'через холл':         'через холл',    'throughHall':     'через холл',
 }
 
-XGB_MAPE       = 0.31  # GroupKFold CV продажа
-COMBINED_MAPE  = 0.27  # Combined α=0.05: лучшая оценка для плохого сценария
-RENT_XGB_MAPE  = 0.31  # GroupKFold CV аренда
+XGB_MAPE       = 0.283  # GroupKFold CV продажа
+COMBINED_MAPE  = 0.283  # = XGB_MAPE (лучший α=0.00, combined не улучшает)
+RENT_XGB_MAPE  = 0.304  # GroupKFold CV аренда
 TERR_MAPE      = 0.35  # LOO-CV территориальная медиана (продажа и аренда)
 
 _FLOOR_LOT = {
@@ -215,6 +215,8 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
     if "dist_kremlin" in row:
         row["dist_kremlin"] = haversine_m(KREMLIN_LAT, KREMLIN_LON,
                                           float(lot["latitude"]), float(lot["longitude"]))
+    if "этажность_здания" in row:
+        row["этажность_здания"] = float(lot["этажность"]) if pd.notna(lot.get("этажность")) else 0.0
     if floor and f"этаж_{floor}" in row:
         row[f"этаж_{floor}"] = 1.0
     if "вход_отдельный_any" in row and entrance in _ВХОД_ОТДЕЛЬНЫЙ:
@@ -255,6 +257,8 @@ def predict_rent_pm2(booster, feature_cols, lot, apt_400, apt_800,
     if "dist_kremlin" in row:
         row["dist_kremlin"] = haversine_m(KREMLIN_LAT, KREMLIN_LON,
                                           float(lot["latitude"]), float(lot["longitude"]))
+    if "этажность_здания" in row:
+        row["этажность_здания"] = float(lot["этажность"]) if pd.notna(lot.get("этажность")) else 0.0
     if floor and f"этаж_{floor}" in row:
         row[f"этаж_{floor}"] = 1.0
     if "вход_отдельный_any" in row and entrance in _ВХОД_ОТДЕЛЬНЫЙ:
@@ -1086,11 +1090,9 @@ with tab3:
 
     # ── Продажа ────────────────────────────────────────────────────────────────
     st.markdown("### Продажа")
-    xm1, xm2, xm3 = st.columns(3)
-    xm1.metric("MAPE XGBoost", "31%", help="Честная оценка: утечка по зданию исключена")
-    xm2.metric("MAPE Combined (α=0.05)", "27%",
-               help="Итоговая оценка: 0.05 × территориальная медиана + 0.95 × XGBoost. Используется для пессимистичного сценария −27%")
-    xm3.metric("MAPE Территориальный", "35%")
+    xm1, xm2 = st.columns(2)
+    xm1.metric("MAPE XGBoost", f"{XGB_MAPE*100:.0f}%", help="Честная оценка: утечка по зданию исключена. Используется для пессимистичного сценария")
+    xm2.metric("MAPE Территориальный", "35%")
 
     st.markdown("**Территориальная медиана — LOO-CV**")
     st.caption("Для каждого объявления предсказываем цену/м² по медиане соседей того же этажа в радиусе 700 м (исключая 100 м вокруг себя).")
@@ -1103,7 +1105,7 @@ with tab3:
     st.divider()
     st.markdown("### Аренда")
     rm1, rm2 = st.columns(2)
-    rm1.metric("MAPE XGBoost", "31%", help="Честная оценка: утечка по зданию исключена")
+    rm1.metric("MAPE XGBoost", f"{RENT_XGB_MAPE*100:.0f}%", help="Честная оценка: утечка по зданию исключена. Используется для пессимистичного сценария")
     rm2.metric("MAPE Территориальный", "44.6%")
 
     st.markdown("**Территориальная медиана — LOO-CV**")
