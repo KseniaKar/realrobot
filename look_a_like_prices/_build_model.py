@@ -14,6 +14,7 @@ from xgboost import XGBRegressor
 sys.stdout.reconfigure(encoding='utf-8')
 
 SALE_CSV   = 'C:/git/realrobot/look_a_like_prices/data/sale_dedup.csv'
+ARENDA_CSV = 'C:/git/realrobot/look_a_like_prices/data/arenda_dedup.csv'
 ENTRANCE   = 'C:/git/realrobot/look_a_like_prices/_entrance_results.csv'
 BUILDINGS  = 'C:/git/realrobot/look_a_like_prices/data/buildings_moscow.parquet'
 MODEL_DIR  = 'C:/git/realrobot/look_a_like_prices/data'
@@ -118,12 +119,41 @@ df['apt_400'] = [int(b_apts[i].sum()) for i in idx_400]
 df['apt_800'] = [int(b_apts[i].sum()) for i in idx_800]
 print(f'  Медиана apt_400: {df["apt_400"].median():.0f}, apt_800: {df["apt_800"].median():.0f}')
 
+# ── медиана аренды в 700м как признак ─────────────────────────────────────────
+print('\nЗагружаем данные аренды для признака median_rent_700m...')
+rent = pd.read_csv(ARENDA_CSV, sep=';', encoding='utf-8-sig')
+rent['площадь_r'] = rent.apply(_get_area, axis=1)
+rent['цена_r']    = pd.to_numeric(rent['Цена'], errors='coerce')
+rent['pm2_мес']   = np.where(rent['площадь_r'].fillna(0) > 0, rent['цена_r'] / rent['площадь_r'], np.nan)
+rent['lat_r']     = pd.to_numeric(rent['lat'], errors='coerce')
+rent['lng_r']     = pd.to_numeric(rent['lng'], errors='coerce')
+rent_vid          = rent['Доп.параметры'].apply(lambda x: _parse_param(x, 'Вид объекта'))
+rent = rent[~rent_vid.isin(exclude_vid)].copy()
+rent = rent.dropna(subset=['lat_r','lng_r','pm2_мес'])
+rent = rent[(rent['pm2_мес'] >= 200) & (rent['pm2_мес'] <= 100_000) & (rent['площадь_r'] >= 15)]
+rent = rent.reset_index(drop=True)
+print(f'  Аренда: {len(rent)} объявлений')
+
+r_coords  = np.radians(rent[['lat_r','lng_r']].values)
+r_pm2     = rent['pm2_мес'].values
+rent_tree = BallTree(r_coords, metric='haversine')
+
+print('Считаем медиану аренды в 700м...')
+idx_rent = rent_tree.query_radius(q_coords, r=700/R_EARTH)
+df['median_rent_700m'] = [
+    float(np.median(r_pm2[i])) if len(i) >= 2 else np.nan
+    for i in idx_rent
+]
+n_rent_known = df['median_rent_700m'].notna().sum()
+print(f'  Покрытие: {n_rent_known}/{len(df)} ({n_rent_known/len(df)*100:.0f}%)')
+print(f'  Медиана median_rent_700m: {df["median_rent_700m"].median():.0f} руб/м²/мес')
+
 # ── feature matrix ─────────────────────────────────────────────────────────────
 print('\nСтроим матрицу признаков...')
 floor_dummies = pd.get_dummies(df['этаж_норм'], prefix='этаж', drop_first=False)
 entrance_dummies = pd.get_dummies(df['тип_входа'], prefix='вход', drop_first=False)
 
-feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800', 'lat', 'lng']
+feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800', 'median_rent_700m', 'lat', 'lng']
 X = pd.concat([df[feat_cols_base], floor_dummies, entrance_dummies], axis=1).astype(float)
 y = df['цена_за_м2'].values
 
