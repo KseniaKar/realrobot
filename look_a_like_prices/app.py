@@ -765,7 +765,7 @@ with tab3:
     xm1, xm2, xm3 = st.columns(3)
     xm1.metric("MAPE XGBoost", "31%", help="Честная оценка: утечка по зданию исключена")
     xm2.metric("MAPE Combined (α=0.05)", "27%")
-    xm3.metric("MAPE Территориальный", "34%")
+    xm3.metric("MAPE Территориальный", "35%")
 
     st.divider()
     st.markdown("**Территориальная медиана — LOO-CV** (каждый объект предсказывается соседями, "
