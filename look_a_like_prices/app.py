@@ -857,9 +857,12 @@ with tab2:
                     market_invest  = market_price + reno_total
                     market_payback = market_invest / annual_rent if annual_rent > 0 else None
                     pr1, pr2, pr3 = st.columns(3)
-                    pr1.metric("Рыночная цена (модель)", f"{market_price/1e6:.1f} млн руб")
-                    pr2.metric("Cap rate (аукцион)", f"{cap_rate_auc:.1f}%")
-                    pr3.metric("Cap rate (рынок)", f"{cap_rate_mkt:.1f}%")
+                    pr1.metric("Рыночная цена (модель)", f"{market_price/1e6:.1f} млн руб",
+                               help="Оценка из модели продажи (вкладка «Продажа — аналоги»): цена/м² × площадь лота")
+                    pr2.metric("Cap rate (аукцион)", f"{cap_rate_auc:.1f}%",
+                               help="Годовая аренда / цена покупки на аукционе × 100%")
+                    pr3.metric("Cap rate (рынок)", f"{cap_rate_mkt:.1f}%",
+                               help="Годовая аренда / рыночная цена (модель продажи) × 100%. Показывает доходность, которую получил бы покупатель по рыночной цене")
             else:
                 missing = []
                 if not area: missing.append("площадь лота")
