@@ -345,6 +345,12 @@ with tab1:
             help="Итоговая цена = α × территориальная медиана + (1−α) × модель XGBoost"
         )
 
+        available_types = sorted(analogues["вид_объекта"].dropna().unique().tolist())
+        selected_types = st.multiselect(
+            "Тип объекта", available_types, default=available_types,
+        )
+        sale_ana = analogues[analogues["вид_объекта"].isin(selected_types)] if selected_types else analogues
+
         collected = []
         for _, lot in selected_lots.iterrows():
             lot_lat = float(lot["latitude"])
@@ -352,7 +358,7 @@ with tab1:
             lot_area = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else None
             lot_num = lot["номер_лота"]
 
-            ana = analogues.copy()
+            ana = sale_ana.copy()
             ana["расстояние_м"] = ana.apply(
                 lambda r: haversine_m(lot_lat, lot_lon, r["lat"], r["lng"]), axis=1
             )
@@ -402,7 +408,7 @@ with tab1:
             entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
             lot_entrance = _ENTRANCE_LOT.get(entrance_raw)
             model_pm2 = predict_price_m2(hedge_model, hedge_features, lot, a400, a800)
-            terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, lot_entrance, analogues, radius_m)
+            terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, lot_entrance, sale_ana, radius_m)
 
             if terr_pm2 and model_pm2:
                 final_pm2 = alpha * terr_pm2 + (1 - alpha) * model_pm2
@@ -533,6 +539,7 @@ with tab1:
             area_str  = f"{row['площадь']:.0f} м²" if pd.notna(row["площадь"]) else "—"
             цена_str  = f"{row['цена_млн']:.1f} млн ₽" if pd.notna(row.get("цена_млн")) else "—"
             metro_str = f"{row['Расстояние до метро, км']:.2f} км" if pd.notna(row.get("Расстояние до метро, км")) else "—"
+            вход_str  = row.get("тип_входа") or "—"
             popup_html = (
                 f"<div style='font-family:Arial;min-width:240px;font-size:13px;line-height:1.5;'>"
                 f"<b>{row['Адрес']}</b><br>"
@@ -541,6 +548,7 @@ with tab1:
                 f"Цена: {цена_str}<br>"
                 f"Цена/м²: {pm2_str}<br>"
                 f"Этаж: {row['этаж'] or '—'}<br>"
+                f"Тип входа: {вход_str}<br>"
                 f"Метро/Район: {row.get('Метро/Район') or '—'}<br>"
                 f"До метро: {metro_str}<br>"
                 f"До лота: {row['расстояние_м']:.0f} м<br>"
@@ -564,14 +572,15 @@ with tab1:
         if not all_nearby.empty:
             table = all_nearby[[
                 "лот", "Адрес", "площадь", "цена_млн", "цена_за_м²",
-                "этаж", "вид_объекта", "Метро/Район",
+                "этаж", "тип_входа", "вид_объекта", "Метро/Район",
                 "Расстояние до метро, км", "расстояние_м", "URL",
             ]].copy()
             table["цена_за_м²_тр"] = table["цена_за_м²"] / 1000
+            table = table.sort_values("цена_за_м²").reset_index(drop=True)
 
             show_cols = [
                 "лот", "Адрес", "площадь", "цена_млн", "цена_за_м²_тр",
-                "этаж", "вид_объекта", "Метро/Район",
+                "этаж", "тип_входа", "вид_объекта", "Метро/Район",
                 "Расстояние до метро, км", "расстояние_м", "URL",
             ]
             if len(selected_lots) == 1:
@@ -588,6 +597,7 @@ with tab1:
                     "цена_млн": st.column_config.NumberColumn("Цена, млн ₽", format="%.1f"),
                     "цена_за_м²_тр": st.column_config.NumberColumn("Цена/м², тр", format="%.0f"),
                     "этаж": "Этаж",
+                    "тип_входа": "Тип входа",
                     "вид_объекта": "Вид объекта",
                     "Метро/Район": "Метро/Район",
                     "Расстояние до метро, км": st.column_config.NumberColumn(
