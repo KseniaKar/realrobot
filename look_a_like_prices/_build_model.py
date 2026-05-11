@@ -150,11 +150,12 @@ print(f'  Медиана median_rent_700m: {df["median_rent_700m"].median():.0f}
 
 # ── feature matrix ─────────────────────────────────────────────────────────────
 print('\nСтроим матрицу признаков...')
-floor_dummies = pd.get_dummies(df['этаж_норм'], prefix='этаж', drop_first=False)
-entrance_dummies = pd.get_dummies(df['тип_входа'], prefix='вход', drop_first=False)
+floor_dummies   = pd.get_dummies(df['этаж_норм'], prefix='этаж', drop_first=False)
+entrance_dummies= pd.get_dummies(df['тип_входа'], prefix='вход', drop_first=False)
+vid_dummies     = pd.get_dummies(df['вид'],        prefix='вид',  drop_first=False)
 
 feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800', 'median_rent_700m', 'lat', 'lng']
-X = pd.concat([df[feat_cols_base], floor_dummies, entrance_dummies], axis=1).astype(float)
+X = pd.concat([df[feat_cols_base], floor_dummies, entrance_dummies, vid_dummies], axis=1).astype(float)
 y = df['цена_за_м2'].values
 
 mask = np.isfinite(y) & np.isfinite(X['площадь']) & np.isfinite(X['до_метро'])

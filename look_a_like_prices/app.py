@@ -59,6 +59,11 @@ _ENTRANCE_LOT = {
     "вход через подъезд":                  "общий с улицы",
 }
 
+_VID_LOT = {
+    "свободное":      "Помещение свободного назначения",
+    "бытовые услуги": "Торговое помещение",
+}
+
 st.set_page_config(page_title="Аналоги продажи", layout="wide")
 
 
@@ -164,6 +169,8 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800, median_rent_7
     floor = _norm_floor_lot(str(lot.get("этаж", "")))
     entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
     entrance = _ENTRANCE_LOT.get(entrance_raw)
+    vid_raw = str(lot.get("функциональное_назначение", "")).strip().lower()
+    vid = _VID_LOT.get(vid_raw)
 
     row = {c: 0.0 for c in feature_cols}
     row["площадь"] = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else np.nan
@@ -178,6 +185,8 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800, median_rent_7
         row[f"этаж_{floor}"] = 1.0
     if entrance and f"вход_{entrance}" in row:
         row[f"вход_{entrance}"] = 1.0
+    if vid and f"вид_{vid}" in row:
+        row[f"вид_{vid}"] = 1.0
 
     X = np.array([[row[c] for c in feature_cols]], dtype=np.float32)
     dm = xgb.DMatrix(X, feature_names=feature_cols)
