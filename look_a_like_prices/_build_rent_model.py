@@ -148,8 +148,19 @@ idx_sale_1500 = sale_tree.query_radius(q_coords, r=1500/R_EARTH)
 df['median_sale_700m']  = [float(np.median(s_pm2[i])) if len(i) >= 2 else np.nan for i in idx_sale_700]
 df['median_sale_1500m'] = [float(np.median(s_pm2[i])) if len(i) >= 2 else np.nan for i in idx_sale_1500]
 df['sale_count_700m']   = [len(i) for i in idx_sale_700]
+
+s_vid = sale['вид_s'].values
+med_same = []
+for i, idx in enumerate(idx_sale_700):
+    if len(idx) == 0:
+        med_same.append(np.nan); continue
+    same = idx[s_vid[idx] == df['вид'].iloc[i]]
+    med_same.append(float(np.median(s_pm2[same])) if len(same) >= 2 else np.nan)
+df['median_sale_700m_same_type'] = med_same
+
 print(f'  Покрытие 700м: {df["median_sale_700m"].notna().sum()}/{len(df)} | '
-      f'1500м: {df["median_sale_1500m"].notna().sum()}/{len(df)}')
+      f'1500м: {df["median_sale_1500m"].notna().sum()}/{len(df)} | '
+      f'same_type: {df["median_sale_700m_same_type"].notna().sum()}/{len(df)}')
 
 # ── feature matrix ─────────────────────────────────────────────────────────────
 print('\nСтроим матрицу признаков...')
@@ -161,7 +172,8 @@ df['вход_общий_any']     = df['тип_входа'].isin(ВХОД_ОБЩ
 
 feat_cols_base = [
     'площадь', 'до_метро', 'apt_400', 'apt_800',
-    'median_sale_700m', 'median_sale_1500m', 'sale_count_700m', 'rent_count_700m',
+    'median_sale_700m', 'median_sale_700m_same_type', 'median_sale_1500m',
+    'sale_count_700m', 'rent_count_700m',
     'dist_kremlin', 'lat', 'lng',
     'вход_отдельный_any', 'вход_общий_any',
 ]
