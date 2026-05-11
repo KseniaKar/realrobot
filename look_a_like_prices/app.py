@@ -167,22 +167,21 @@ def load_model():
 
 KREMLIN_LAT, KREMLIN_LON = 55.7520, 37.6175
 
+_ВХОД_ОТДЕЛЬНЫЙ = {'отдельный', 'отдельный с улицы', 'отдельный со двора'}
+_ВХОД_ОБЩИЙ     = {'общий', 'общий с улицы', 'через подъезд', 'через холл'}
+
 def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
-                     median_rent_700m=np.nan, median_rent_700m_same_type=np.nan,
+                     median_rent_700m_same_type=np.nan,
                      median_rent_1500m=np.nan, rent_count_700m=0, sale_count_700m=0):
-    floor = _norm_floor_lot(str(lot.get("этаж", "")))
-    entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
-    entrance = _ENTRANCE_LOT.get(entrance_raw)
-    vid_raw = str(lot.get("функциональное_назначение", "")).strip().lower()
-    vid = _VID_LOT.get(vid_raw)
+    floor       = _norm_floor_lot(str(lot.get("этаж", "")))
+    entrance    = _ENTRANCE_LOT.get(str(lot.get("тип_входа", "")).strip().lower())
+    vid         = _VID_LOT.get(str(lot.get("функциональное_назначение", "")).strip().lower())
 
     row = {c: 0.0 for c in feature_cols}
     row["площадь"] = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else np.nan
     row["до_метро"] = np.nan
-    row["apt_400"] = float(apt_400)
-    row["apt_800"] = float(apt_800)
-    if "median_rent_700m" in row:
-        row["median_rent_700m"] = float(median_rent_700m) if np.isfinite(median_rent_700m) else 0.0
+    row["apt_400"]  = float(apt_400)
+    row["apt_800"]  = float(apt_800)
     if "median_rent_700m_same_type" in row:
         row["median_rent_700m_same_type"] = float(median_rent_700m_same_type) if np.isfinite(median_rent_700m_same_type) else 0.0
     if "median_rent_1500m" in row:
@@ -198,8 +197,10 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
                                           float(lot["latitude"]), float(lot["longitude"]))
     if floor and f"этаж_{floor}" in row:
         row[f"этаж_{floor}"] = 1.0
-    if entrance and f"вход_{entrance}" in row:
-        row[f"вход_{entrance}"] = 1.0
+    if "вход_отдельный_any" in row and entrance in _ВХОД_ОТДЕЛЬНЫЙ:
+        row["вход_отдельный_any"] = 1.0
+    if "вход_общий_any" in row and entrance in _ВХОД_ОБЩИЙ:
+        row["вход_общий_any"] = 1.0
     if vid and f"вид_{vid}" in row:
         row[f"вид_{vid}"] = 1.0
 
@@ -456,7 +457,7 @@ with tab1:
             sale_cnt_700 = int((sale_dists <= 700).sum())
             model_pm2 = predict_price_m2(
                 hedge_model, hedge_features, lot, a400, a800,
-                med_rent_700, med_rent_same, med_rent_1500, rent_cnt_700, sale_cnt_700,
+                med_rent_same, med_rent_1500, rent_cnt_700, sale_cnt_700,
             )
             terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, lot_entrance, sale_ana, radius_m)
 

@@ -55,12 +55,11 @@ def _get_area(row):
 def normalize_floor(s):
     if not isinstance(s, str): return None
     s = s.strip().lower()
-    if s in ('цокольный','цоколь','подвальный','подвал','-1','0'): return 'цоколь'
-    if s == '1': return '1'
-    if s == '2': return '2'
+    if s in ('цокольный','цоколь','подвальный','подвал'): return 'цоколь'
     try:
         n = int(s)
-        return '3+' if n >= 3 else s
+        if n <= 0: return 'цоколь'
+        return '1' if n == 1 else ('2' if n == 2 else '3+')
     except: pass
     return s
 
@@ -84,7 +83,6 @@ df['до_метро'] = pd.to_numeric(df['Расстояние до метро, 
 df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
 df['lng'] = pd.to_numeric(df['lng'], errors='coerce')
 df['вид'] = df['Доп.параметры'].apply(lambda x: _parse_param(x, 'Вид объекта'))
-df = df[df['этаж_норм'] != '-2'].copy()
 df = df.dropna(subset=['lat','lng','цена','площадь','цена_за_м2']).reset_index(drop=True)
 # убираем выбросы по цене/м²
 df = df[(df['цена_за_м2'] >= 50_000) & (df['цена_за_м2'] <= 3_000_000)].copy()
@@ -182,15 +180,20 @@ print(f'  Медиана dist_kremlin: {df["dist_kremlin"].median()/1000:.1f} к
 
 # ── feature matrix ─────────────────────────────────────────────────────────────
 print('\nСтроим матрицу признаков...')
-floor_dummies   = pd.get_dummies(df['этаж_норм'], prefix='этаж', drop_first=False)
-entrance_dummies= pd.get_dummies(df['тип_входа'], prefix='вход', drop_first=False)
-vid_dummies     = pd.get_dummies(df['вид'],        prefix='вид',  drop_first=False)
+floor_dummies = pd.get_dummies(df['этаж_норм'], prefix='этаж', drop_first=False)
+vid_dummies   = pd.get_dummies(df['вид'],        prefix='вид',  drop_first=False)
+
+ВХОД_ОТДЕЛЬНЫЙ = {'отдельный', 'отдельный с улицы', 'отдельный со двора'}
+ВХОД_ОБЩИЙ     = {'общий', 'общий с улицы', 'через подъезд', 'через холл'}
+df['вход_отдельный_any'] = df['тип_входа'].isin(ВХОД_ОТДЕЛЬНЫЙ).astype(float)
+df['вход_общий_any']     = df['тип_входа'].isin(ВХОД_ОБЩИЙ).astype(float)
 
 feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800',
-                  'median_rent_700m', 'median_rent_700m_same_type', 'median_rent_1500m',
+                  'median_rent_700m_same_type', 'median_rent_1500m',
                   'rent_count_700m', 'sale_count_700m',
-                  'dist_kremlin', 'lat', 'lng']
-X = pd.concat([df[feat_cols_base], floor_dummies, entrance_dummies, vid_dummies], axis=1).astype(float)
+                  'dist_kremlin', 'lat', 'lng',
+                  'вход_отдельный_any', 'вход_общий_any']
+X = pd.concat([df[feat_cols_base], floor_dummies, vid_dummies], axis=1).astype(float)
 y = df['цена_за_м2'].values
 
 mask = np.isfinite(y) & np.isfinite(X['площадь']) & np.isfinite(X['до_метро'])
