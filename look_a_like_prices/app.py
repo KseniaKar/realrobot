@@ -856,11 +856,10 @@ with tab2:
                     cap_rate_mkt   = (rent_pm2 * 12) / final_pm2 * 100
                     market_invest  = market_price + reno_total
                     market_payback = market_invest / annual_rent if annual_rent > 0 else None
-                    pr1, pr2, pr3, pr4 = st.columns(4)
+                    pr1, pr2, pr3 = st.columns(3)
                     pr1.metric("Рыночная цена (модель)", f"{market_price/1e6:.1f} млн руб")
                     pr2.metric("Cap rate (аукцион)", f"{cap_rate_auc:.1f}%")
                     pr3.metric("Cap rate (рынок)", f"{cap_rate_mkt:.1f}%")
-                    pr4.metric("Окупаемость (рынок)", f"{market_payback:.1f} лет" if market_payback else "—")
             else:
                 missing = []
                 if not area: missing.append("площадь лота")
@@ -908,7 +907,6 @@ with tab2:
                     "Рыночная цена, млн": round(market_price / 1e6, 1) if market_price else None,
                     "Cap rate (аукцион),%": round(cap_rate_auc, 1) if cap_rate_auc else None,
                     "Cap rate (рынок),%": round(cap_rate_mkt, 1) if cap_rate_mkt else None,
-                    "Окупаемость (рынок), лет": round(market_payback, 1) if market_payback else None,
                 })
             st.dataframe(pd.DataFrame(payback_rows), hide_index=True, use_container_width=True)
 
