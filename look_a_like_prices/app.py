@@ -130,6 +130,7 @@ def load_analogues():
     if "Расстояние до метро, км" in df.columns:
         df["Расстояние до метро, км"] = pd.to_numeric(df["Расстояние до метро, км"], errors="coerce")
     df = df[df["этаж_норм"] != "-2"]
+    df = df[df["площадь"].isna() | (df["площадь"] >= 15)]  # убираем кладовки и ларьки
     df = df.dropna(subset=["lat", "lng", "цена"]).copy()
     # джойним тип входа из спарсенных данных
     if ENTRANCE_PATH.exists():
@@ -267,7 +268,7 @@ def load_rent_analogues():
     df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
     df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
     df = df.dropna(subset=["lat", "lng", "цена", "площадь"]).copy()
-    # убираем выбросы
+    df = df[df["площадь"] >= 15].copy()  # убираем кладовки и ларьки
     exclude = {"Здание", "Коммерческая земля", "Складское помещение",
                "Производственное помещение", "Гостиница"}
     df = df[~df["вид_объекта"].isin(exclude)].copy()
