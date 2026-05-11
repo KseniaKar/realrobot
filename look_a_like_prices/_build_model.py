@@ -138,15 +138,28 @@ r_coords  = np.radians(rent[['lat_r','lng_r']].values)
 r_pm2     = rent['pm2_мес'].values
 rent_tree = BallTree(r_coords, metric='haversine')
 
-print('Считаем медиану аренды в 700м...')
+print('Считаем медиану аренды в 700м и кол-во объявлений аренды...')
 idx_rent = rent_tree.query_radius(q_coords, r=700/R_EARTH)
 df['median_rent_700m'] = [
     float(np.median(r_pm2[i])) if len(i) >= 2 else np.nan
     for i in idx_rent
 ]
+df['rent_count_700m'] = [len(i) for i in idx_rent]
 n_rent_known = df['median_rent_700m'].notna().sum()
-print(f'  Покрытие: {n_rent_known}/{len(df)} ({n_rent_known/len(df)*100:.0f}%)')
+print(f'  Покрытие median_rent: {n_rent_known}/{len(df)} ({n_rent_known/len(df)*100:.0f}%)')
 print(f'  Медиана median_rent_700m: {df["median_rent_700m"].median():.0f} руб/м²/мес')
+print(f'  Медиана rent_count_700m: {df["rent_count_700m"].median():.0f}')
+
+# ── кол-во продаж в 700м + расстояние до Кремля ───────────────────────────────
+print('\nСчитаем sale_count_700m и dist_kremlin...')
+sale_tree = BallTree(q_coords, metric='haversine')
+idx_sale  = sale_tree.query_radius(q_coords, r=700/R_EARTH)
+df['sale_count_700m'] = [len(i) - 1 for i in idx_sale]  # -1 чтобы не считать себя
+
+KREMLIN_LAT, KREMLIN_LON = 55.7520, 37.6175
+df['dist_kremlin'] = haversine_vec(KREMLIN_LAT, KREMLIN_LON, df['lat'].values, df['lng'].values)
+print(f'  Медиана sale_count_700m: {df["sale_count_700m"].median():.0f}')
+print(f'  Медиана dist_kremlin: {df["dist_kremlin"].median()/1000:.1f} км')
 
 # ── feature matrix ─────────────────────────────────────────────────────────────
 print('\nСтроим матрицу признаков...')
@@ -154,7 +167,9 @@ floor_dummies   = pd.get_dummies(df['этаж_норм'], prefix='этаж', dro
 entrance_dummies= pd.get_dummies(df['тип_входа'], prefix='вход', drop_first=False)
 vid_dummies     = pd.get_dummies(df['вид'],        prefix='вид',  drop_first=False)
 
-feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800', 'median_rent_700m', 'lat', 'lng']
+feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800',
+                  'median_rent_700m', 'rent_count_700m', 'sale_count_700m',
+                  'dist_kremlin', 'lat', 'lng']
 X = pd.concat([df[feat_cols_base], floor_dummies, entrance_dummies, vid_dummies], axis=1).astype(float)
 y = df['цена_за_м2'].values
 

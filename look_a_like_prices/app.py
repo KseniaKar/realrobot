@@ -165,7 +165,10 @@ def load_model():
     return booster, feature_cols
 
 
-def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800, median_rent_700m=np.nan):
+KREMLIN_LAT, KREMLIN_LON = 55.7520, 37.6175
+
+def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
+                     median_rent_700m=np.nan, rent_count_700m=0, sale_count_700m=0):
     floor = _norm_floor_lot(str(lot.get("этаж", "")))
     entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
     entrance = _ENTRANCE_LOT.get(entrance_raw)
@@ -179,8 +182,15 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800, median_rent_7
     row["apt_800"] = float(apt_800)
     if "median_rent_700m" in row:
         row["median_rent_700m"] = float(median_rent_700m) if np.isfinite(median_rent_700m) else 0.0
+    if "rent_count_700m" in row:
+        row["rent_count_700m"] = float(rent_count_700m)
+    if "sale_count_700m" in row:
+        row["sale_count_700m"] = float(sale_count_700m)
     row["lat"] = float(lot["latitude"])
     row["lng"] = float(lot["longitude"])
+    if "dist_kremlin" in row:
+        row["dist_kremlin"] = haversine_m(KREMLIN_LAT, KREMLIN_LON,
+                                          float(lot["latitude"]), float(lot["longitude"]))
     if floor and f"этаж_{floor}" in row:
         row[f"этаж_{floor}"] = 1.0
     if entrance and f"вход_{entrance}" in row:
@@ -420,11 +430,16 @@ with tab1:
 
             entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
             lot_entrance = _ENTRANCE_LOT.get(entrance_raw)
-            rent_nearby = rent_analogues[
-                haversine_vec(lat_, lon_, rent_analogues["lat"].values, rent_analogues["lng"].values) <= 700
-            ]["цена_за_м²_мес"].dropna()
-            med_rent_700 = float(rent_nearby.median()) if len(rent_nearby) >= 2 else np.nan
-            model_pm2 = predict_price_m2(hedge_model, hedge_features, lot, a400, a800, med_rent_700)
+            rent_dists   = haversine_vec(lat_, lon_, rent_analogues["lat"].values, rent_analogues["lng"].values)
+            rent_near    = rent_analogues[rent_dists <= 700]["цена_за_м²_мес"].dropna()
+            med_rent_700 = float(rent_near.median()) if len(rent_near) >= 2 else np.nan
+            rent_cnt_700 = int((rent_dists <= 700).sum())
+            sale_dists   = haversine_vec(lat_, lon_, sale_ana["lat"].values, sale_ana["lng"].values)
+            sale_cnt_700 = int((sale_dists <= 700).sum())
+            model_pm2 = predict_price_m2(
+                hedge_model, hedge_features, lot, a400, a800,
+                med_rent_700, rent_cnt_700, sale_cnt_700,
+            )
             terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, lot_entrance, sale_ana, radius_m)
 
             if terr_pm2 and model_pm2:
