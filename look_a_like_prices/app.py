@@ -1088,7 +1088,8 @@ with tab3:
     st.markdown("### Продажа")
     xm1, xm2, xm3 = st.columns(3)
     xm1.metric("MAPE XGBoost", "31%", help="Честная оценка: утечка по зданию исключена")
-    xm2.metric("MAPE Combined (α=0.05)", "27%")
+    xm2.metric("MAPE Combined (α=0.05)", "27%",
+               help="Итоговая оценка: 0.05 × территориальная медиана + 0.95 × XGBoost. Используется для пессимистичного сценария −27%")
     xm3.metric("MAPE Территориальный", "35%")
 
     st.markdown("**Территориальная медиана — LOO-CV**")
