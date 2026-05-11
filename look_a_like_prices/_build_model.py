@@ -127,8 +127,8 @@ rent['цена_r']    = pd.to_numeric(rent['Цена'], errors='coerce')
 rent['pm2_мес']   = np.where(rent['площадь_r'].fillna(0) > 0, rent['цена_r'] / rent['площадь_r'], np.nan)
 rent['lat_r']     = pd.to_numeric(rent['lat'], errors='coerce')
 rent['lng_r']     = pd.to_numeric(rent['lng'], errors='coerce')
-rent_vid          = rent['Доп.параметры'].apply(lambda x: _parse_param(x, 'Вид объекта'))
-rent = rent[~rent_vid.isin(exclude_vid)].copy()
+rent['вид_r']     = rent['Доп.параметры'].apply(lambda x: _parse_param(x, 'Вид объекта'))
+rent = rent[~rent['вид_r'].isin(exclude_vid)].copy()
 rent = rent.dropna(subset=['lat_r','lng_r','pm2_мес'])
 rent = rent[(rent['pm2_мес'] >= 200) & (rent['pm2_мес'] <= 100_000) & (rent['площадь_r'] >= 15)]
 rent = rent.reset_index(drop=True)
@@ -138,17 +138,36 @@ r_coords  = np.radians(rent[['lat_r','lng_r']].values)
 r_pm2     = rent['pm2_мес'].values
 rent_tree = BallTree(r_coords, metric='haversine')
 
-print('Считаем медиану аренды в 700м и кол-во объявлений аренды...')
-idx_rent = rent_tree.query_radius(q_coords, r=700/R_EARTH)
-df['median_rent_700m'] = [
-    float(np.median(r_pm2[i])) if len(i) >= 2 else np.nan
-    for i in idx_rent
-]
-df['rent_count_700m'] = [len(i) for i in idx_rent]
-n_rent_known = df['median_rent_700m'].notna().sum()
-print(f'  Покрытие median_rent: {n_rent_known}/{len(df)} ({n_rent_known/len(df)*100:.0f}%)')
-print(f'  Медиана median_rent_700m: {df["median_rent_700m"].median():.0f} руб/м²/мес')
-print(f'  Медиана rent_count_700m: {df["rent_count_700m"].median():.0f}')
+print('Считаем медиану аренды в 700м/1500м и кол-во объявлений...')
+idx_rent_700  = rent_tree.query_radius(q_coords, r= 700/R_EARTH)
+idx_rent_1500 = rent_tree.query_radius(q_coords, r=1500/R_EARTH)
+
+df['median_rent_700m']  = [float(np.median(r_pm2[i])) if len(i) >= 2 else np.nan for i in idx_rent_700]
+df['median_rent_1500m'] = [float(np.median(r_pm2[i])) if len(i) >= 2 else np.nan for i in idx_rent_1500]
+df['rent_count_700m']   = [len(i) for i in idx_rent_700]
+print(f'  Покрытие 700м: {df["median_rent_700m"].notna().sum()}/{len(df)} | '
+      f'1500м: {df["median_rent_1500m"].notna().sum()}/{len(df)}')
+
+# median_rent_700m_same_type: аренда того же вида объекта
+print('Считаем median_rent_700m_same_type...')
+r_vids = rent['вид_r'].values
+df['median_rent_700m_same_type'] = np.nan
+for vid_val in df['вид'].dropna().unique():
+    sale_mask = (df['вид'] == vid_val).values
+    rent_mask = r_vids == vid_val
+    if sale_mask.sum() == 0 or rent_mask.sum() == 0:
+        continue
+    r_sub    = rent[rent_mask].reset_index(drop=True)
+    pm2_sub  = r_sub['pm2_мес'].values
+    tree_sub = BallTree(np.radians(r_sub[['lat_r','lng_r']].values), metric='haversine')
+    idx_sub  = tree_sub.query_radius(q_coords[sale_mask], r=700/R_EARTH)
+    vals = [float(np.median(pm2_sub[i])) if len(i) >= 2 else np.nan for i in idx_sub]
+    df.loc[sale_mask, 'median_rent_700m_same_type'] = vals
+    print(f'  {vid_val}: {sum(v==v for v in vals)}/{sale_mask.sum()} покрыто')
+# фоллбэк: тип не совпал → берём общую медиану
+fallback = df['median_rent_700m_same_type'].isna() & df['median_rent_700m'].notna()
+df.loc[fallback, 'median_rent_700m_same_type'] = df.loc[fallback, 'median_rent_700m']
+print(f'  Итого покрытие same_type: {df["median_rent_700m_same_type"].notna().sum()}/{len(df)}')
 
 # ── кол-во продаж в 700м + расстояние до Кремля ───────────────────────────────
 print('\nСчитаем sale_count_700m и dist_kremlin...')
@@ -168,7 +187,8 @@ entrance_dummies= pd.get_dummies(df['тип_входа'], prefix='вход', dro
 vid_dummies     = pd.get_dummies(df['вид'],        prefix='вид',  drop_first=False)
 
 feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800',
-                  'median_rent_700m', 'rent_count_700m', 'sale_count_700m',
+                  'median_rent_700m', 'median_rent_700m_same_type', 'median_rent_1500m',
+                  'rent_count_700m', 'sale_count_700m',
                   'dist_kremlin', 'lat', 'lng']
 X = pd.concat([df[feat_cols_base], floor_dummies, entrance_dummies, vid_dummies], axis=1).astype(float)
 y = df['цена_за_м2'].values
