@@ -41,20 +41,36 @@ COMBINED_MAPE  = 0.283  # = XGB_MAPE (лучший α=0.00, combined не улу
 RENT_XGB_MAPE  = 0.304  # GroupKFold CV аренда
 TERR_MAPE      = 0.35  # LOO-CV территориальная медиана (продажа и аренда)
 
-_FLOOR_LOT = {
-    "подвал": "цоколь", "цоколь": "цоколь", "-1": "цоколь", "-2": "цоколь",
+_FLOOR_LOT_SINGLE = {
+    "подвал": "цоколь", "подвальный": "цоколь",
+    "цоколь": "цоколь", "цокольный": "цоколь",
+    "полуподвал": "цоколь", "1 пол": "цоколь",
+    "техническое подполье": "цоколь",
+    "-1": "цоколь", "-2": "цоколь", "-3": "цоколь", "0": "цоколь",
     "1": "1", "1 этаж": "1",
-    "2": "2", "3": "3+", "4": "3+", "5": "3+",
+    "антресоль": "2", "мезонин": "1",
+    "2": "2", "2 этаж и выше": "3+",
+    "3": "3+", "4": "3+", "5": "3+", "6": "3+", "7": "3+",
+    "8": "3+", "9": "3+", "10": "3+", "11": "3+", "12": "3+",
+    "мансарда": "3+", "чердак": "3+",
 }
 
 def _norm_floor_lot(s):
     if not isinstance(s, str): return None
     s = s.strip().lower()
-    if s in _FLOOR_LOT: return _FLOOR_LOT[s]
+    # точное совпадение
+    if s in _FLOOR_LOT_SINGLE:
+        return _FLOOR_LOT_SINGLE[s]
+    # многоэтажный лот: берём первый (нижний) токен
+    if "," in s:
+        first = s.split(",")[0].strip()
+        return _norm_floor_lot(first)
+    # числовое значение
     try:
         n = int(s)
         return "цоколь" if n <= 0 else ("1" if n == 1 else ("2" if n == 2 else "3+"))
-    except ValueError: pass
+    except ValueError:
+        pass
     return None
 
 _ENTRANCE_LOT = {
