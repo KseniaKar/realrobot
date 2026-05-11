@@ -34,7 +34,8 @@ NORM_ENTRANCE = {
     'через холл':         'через холл',    'throughHall':     'через холл',
 }
 
-XGB_MAPE = 0.31  # GroupKFold CV, обновлять после переобучения
+XGB_MAPE  = 0.31  # GroupKFold CV, обновлять после переобучения
+TERR_MAPE = 0.35  # LOO-CV территориальная медиана (продажа и аренда)
 
 _FLOOR_LOT = {
     "подвал": "цоколь", "цоколь": "цоколь", "-1": "цоколь", "-2": "цоколь",
@@ -681,11 +682,15 @@ with tab2:
                 total_invest = auction_price + reno_total
                 annual_rent = rent_pm2 * area * 12
                 payback_yrs = total_invest / annual_rent if annual_rent > 0 else None
+                pess_rent = rent_pm2 * (1 - TERR_MAPE)
+                pess_payback = total_invest / (pess_rent * area * 12) if pess_rent > 0 else None
                 pc1, pc2, pc3, pc4 = st.columns(4)
                 pc1.metric("Цена покупки", f"{auction_price/1e6:.1f} млн руб")
                 pc2.metric("Ремонт", f"{reno_total/1e6:.1f} млн руб")
                 pc3.metric("Итого инвестиций", f"{total_invest/1e6:.1f} млн руб")
-                pc4.metric("Срок окупаемости", f"{payback_yrs:.1f} лет" if payback_yrs else "—")
+                pess_delta = f"при −{TERR_MAPE*100:.0f}%: {pess_payback:.1f} лет" if pess_payback else None
+                pc4.metric("Срок окупаемости", f"{payback_yrs:.1f} лет" if payback_yrs else "—",
+                           delta=pess_delta, delta_color="inverse")
                 st.caption(
                     f"Годовой доход от аренды: {annual_rent/1e6:.2f} млн руб "
                     f"({rent_pm2:.0f} руб/м²/мес x {area:.0f} м2 x 12 мес)"
@@ -708,8 +713,10 @@ with tab2:
                     total_invest = auction_price + reno_total
                     annual_rent = rent_pm2 * area * 12
                     payback_yrs = total_invest / annual_rent if annual_rent > 0 else None
+                    pess_rent = rent_pm2 * (1 - TERR_MAPE)
+                    pess_payback = total_invest / (pess_rent * area * 12) if pess_rent > 0 else None
                 else:
-                    reno_total = total_invest = annual_rent = payback_yrs = None
+                    reno_total = total_invest = annual_rent = payback_yrs = pess_payback = None
                 payback_rows.append({
                     "Лот": s["лот"],
                     "Площадь, м²": round(area, 0) if area else None,
@@ -718,6 +725,7 @@ with tab2:
                     "Инвестиции, млн": round(total_invest / 1e6, 1) if total_invest else None,
                     "Аренда/м²/мес": round(rent_pm2, 0) if rent_pm2 else None,
                     "Окупаемость, лет": round(payback_yrs, 1) if payback_yrs else None,
+                    f"Окупаемость −{TERR_MAPE*100:.0f}%, лет": round(pess_payback, 1) if pess_payback else None,
                 })
             st.dataframe(pd.DataFrame(payback_rows), hide_index=True, use_container_width=True)
 
