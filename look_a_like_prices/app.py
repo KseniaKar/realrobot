@@ -36,9 +36,9 @@ NORM_ENTRANCE = {
     'через холл':         'через холл',    'throughHall':     'через холл',
 }
 
-XGB_MAPE       = 0.283  # GroupKFold CV продажа
-COMBINED_MAPE  = 0.283  # = XGB_MAPE (лучший α=0.00, combined не улучшает)
-RENT_XGB_MAPE  = 0.304  # GroupKFold CV аренда
+XGB_MAPE       = 0.284  # GroupKFold CV продажа
+COMBINED_MAPE  = 0.284  # = XGB_MAPE (лучший α=0.00, combined не улучшает)
+RENT_XGB_MAPE  = 0.311  # GroupKFold CV аренда
 TERR_MAPE      = 0.35  # LOO-CV территориальная медиана (продажа и аренда)
 
 _FLOOR_LOT_SINGLE = {

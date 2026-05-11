@@ -182,7 +182,7 @@ feat_cols_base = [
 X = pd.concat([df[feat_cols_base], floor_dummies, vid_dummies], axis=1).astype(float)
 y = df['цена_за_м2'].values
 
-mask = np.isfinite(y) & np.isfinite(X['площадь']) & np.isfinite(X['до_метро'])
+mask = np.isfinite(y) & np.isfinite(X['площадь'])
 X = X[mask].fillna(0)
 y = y[mask]
 df_valid = df[mask].reset_index(drop=True)
