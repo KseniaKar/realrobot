@@ -210,6 +210,15 @@ KREMLIN_LAT, KREMLIN_LON = 55.7520, 37.6175
 _ВХОД_ОТДЕЛЬНЫЙ = {'отдельный', 'отдельный с улицы', 'отдельный со двора'}
 _ВХОД_ОБЩИЙ     = {'общий', 'общий с улицы', 'через подъезд', 'через холл'}
 
+_METRO_MIN_RE = re.compile(r'\((\d+)\s*мин\)', re.IGNORECASE)
+
+def _metro_km_from_lot(metro_str):
+    """Парсит 'Название (N мин)' → N × 0.083 км. Возвращает np.nan если нет данных."""
+    if not isinstance(metro_str, str):
+        return np.nan
+    m = _METRO_MIN_RE.search(metro_str)
+    return float(m.group(1)) * 0.083 if m else np.nan
+
 def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
                      median_rent_700m=np.nan, median_rent_700m_same_type=np.nan,
                      median_rent_1500m=np.nan, rent_count_700m=0, sale_count_700m=0):
@@ -219,7 +228,7 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800,
 
     row = {c: 0.0 for c in feature_cols}
     row["площадь"] = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else np.nan
-    row["до_метро"] = np.nan
+    row["до_метро"] = _metro_km_from_lot(lot.get("метро"))
     row["apt_400"]  = float(apt_400)
     row["apt_800"]  = float(apt_800)
     if "median_rent_700m" in row:
@@ -263,7 +272,7 @@ def predict_rent_pm2(booster, feature_cols, lot, apt_400, apt_800,
 
     row = {c: 0.0 for c in feature_cols}
     row["площадь"]  = float(lot["площадь_м²"]) if pd.notna(lot.get("площадь_м²")) else np.nan
-    row["до_метро"] = np.nan
+    row["до_метро"] = _metro_km_from_lot(lot.get("метро"))
     row["apt_400"]  = float(apt_400)
     row["apt_800"]  = float(apt_800)
     if "median_sale_700m" in row:
