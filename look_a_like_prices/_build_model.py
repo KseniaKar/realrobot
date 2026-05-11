@@ -99,28 +99,32 @@ print(f'  Тип входа: {n_with}/{len(df)} ({n_with/len(df)*100:.0f}%)')
 
 # ── BallTree для квартир в радиусе ─────────────────────────────────────────────
 print('\nСтроим BallTree по зданиям...')
-bld = pd.read_parquet(BUILDINGS, columns=['lat','lng','apt_living'])
+bld = pd.read_parquet(BUILDINGS, columns=['lat','lng','apt_living','residents_est'])
 b_coords = np.radians(bld[['lat','lng']].values)
 b_apts = bld['apt_living'].values
+b_res  = bld['residents_est'].values
 tree = BallTree(b_coords, metric='haversine')
 
-print('Считаем квартиры в 400м и 800м для 16k объектов...')
+print('Считаем квартиры в 400м/800м и жителей в 500м...')
 q_coords = np.radians(df[['lat','lng']].values)
 
 R_EARTH = 6_371_000.0
 idx_400 = tree.query_radius(q_coords, r=400/R_EARTH)
 idx_800 = tree.query_radius(q_coords, r=800/R_EARTH)
+idx_500 = tree.query_radius(q_coords, r=500/R_EARTH)
 
-df['apt_400'] = [int(b_apts[i].sum()) for i in idx_400]
-df['apt_800'] = [int(b_apts[i].sum()) for i in idx_800]
+df['apt_400']      = [int(b_apts[i].sum()) for i in idx_400]
+df['apt_800']      = [int(b_apts[i].sum()) for i in idx_800]
+df['residents_500']= [int(b_res[i].sum())  for i in idx_500]
 print(f'  Медиана apt_400: {df["apt_400"].median():.0f}, apt_800: {df["apt_800"].median():.0f}')
+print(f'  Медиана residents_500: {df["residents_500"].median():.0f}')
 
 # ── feature matrix ─────────────────────────────────────────────────────────────
 print('\nСтроим матрицу признаков...')
 floor_dummies = pd.get_dummies(df['этаж_норм'], prefix='этаж', drop_first=False)
 entrance_dummies = pd.get_dummies(df['тип_входа'], prefix='вход', drop_first=False)
 
-feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800', 'lat', 'lng']
+feat_cols_base = ['площадь', 'до_метро', 'apt_400', 'apt_800', 'residents_500', 'lat', 'lng']
 X = pd.concat([df[feat_cols_base], floor_dummies, entrance_dummies], axis=1).astype(float)
 y = df['цена_за_м2'].values
 

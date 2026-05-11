@@ -157,7 +157,7 @@ def load_model():
     return booster, feature_cols
 
 
-def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800):
+def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800, residents_500=0):
     floor = _norm_floor_lot(str(lot.get("этаж", "")))
     entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
     entrance = _ENTRANCE_LOT.get(entrance_raw)
@@ -167,6 +167,7 @@ def predict_price_m2(booster, feature_cols, lot, apt_400, apt_800):
     row["до_метро"] = np.nan
     row["apt_400"] = float(apt_400)
     row["apt_800"] = float(apt_800)
+    row["residents_500"] = float(residents_500)
     row["lat"] = float(lot["latitude"])
     row["lng"] = float(lot["longitude"])
     if floor and f"этаж_{floor}" in row:
@@ -392,12 +393,13 @@ with tab1:
             a, r = count_residents(lat_, lon_, radius_m, buildings)
             a400, _ = count_residents(lat_, lon_, 400, buildings)
             a800, _ = count_residents(lat_, lon_, 800, buildings)
+            _, r500 = count_residents(lat_, lon_, 500, buildings)
             total_apts += a
             total_residents += r
 
             entrance_raw = str(lot.get("тип_входа", "")).strip().lower()
             lot_entrance = _ENTRANCE_LOT.get(entrance_raw)
-            model_pm2 = predict_price_m2(hedge_model, hedge_features, lot, a400, a800)
+            model_pm2 = predict_price_m2(hedge_model, hedge_features, lot, a400, a800, r500)
             terr_pm2, n_terr = territorial_price(lat_, lon_, lot_floor, lot_area, lot_entrance, analogues, radius_m)
 
             if terr_pm2 and model_pm2:
@@ -407,18 +409,28 @@ with tab1:
             else:
                 final_pm2 = model_pm2
 
+            auction_price = float(lot["итоговая_цена_руб"]) if pd.notna(lot.get("итоговая_цена_руб")) else None
+            final_price   = final_pm2 * lot_area if (final_pm2 and lot_area) else None
+            upside_mln    = (final_price - auction_price) / 1e6 if (final_price and auction_price) else None
+            upside_pct    = (final_price - auction_price) / auction_price * 100 if (final_price and auction_price) else None
+
             lot_stats.append({
                 "лот": f"№{lot['номер_лота']}",
                 "площадь": lot_area,
                 "apt_400": a400, "apt_800": a800,
+                "residents_500": r500,
                 "model_pm2": model_pm2,
                 "terr_pm2": terr_pm2,
                 "n_terr": n_terr,
                 "final_pm2": final_pm2,
+                "auction_price": auction_price,
+                "upside_mln": upside_mln,
+                "upside_pct": upside_pct,
             })
 
         mc4.metric("Квартир в радиусе", f"{total_apts:,}".replace(",", " "))
-        mc5.metric("Жителей (оценка)", f"{total_residents:,}".replace(",", " "))
+        res_label = "Жителей (оценка)"
+        mc5.metric(res_label, f"{total_residents:,}".replace(",", " "))
 
         def _fmt_pm2(pm2, area):
             if pm2 is None: return "—"
@@ -436,19 +448,37 @@ with tab1:
             col_t.metric(terr_label, _fmt_pm2(s["terr_pm2"], s["площадь"]))
             col_m.metric("Модель XGBoost", _fmt_pm2(s["model_pm2"], s["площадь"]))
             col_f.metric(f"Итоговая (α={alpha:.2f})", _fmt_pm2(s["final_pm2"], s["площадь"]))
+
+            # upside и аудитория
+            up1, up2, up3, up4 = st.columns(4)
+            if s["auction_price"]:
+                up1.metric("Цена покупки", f"{s['auction_price']/1e6:.1f} млн ₽")
+            if s["upside_mln"] is not None:
+                color_delta = f"{s['upside_pct']:+.0f}%"
+                up2.metric("Upside (рынок − покупка)",
+                           f"{s['upside_mln']:+.1f} млн ₽", delta=color_delta)
+            r500 = s["residents_500"]
+            pop_ok = r500 >= 10_000
+            up3.metric("Жителей в 500м",
+                       f"{r500:,}".replace(",", " "),
+                       delta="✓ ≥ 10 000" if pop_ok else "✗ < 10 000",
+                       delta_color="normal" if pop_ok else "inverse")
             st.caption(f"Квартир в 400м: {s['apt_400']:,} · в 800м: {s['apt_800']:,}".replace(",", " "))
         else:
             price_rows = []
             for s in lot_stats:
                 area = s["площадь"]
+                r500 = s["residents_500"]
                 price_rows.append({
                     "Лот": s["лот"],
                     "Территориальная, тр/м²": round(s["terr_pm2"]/1000, 0) if s["terr_pm2"] else None,
                     "Модель, тр/м²": round(s["model_pm2"]/1000, 0) if s["model_pm2"] else None,
                     f"Итог α={alpha:.2f}, тр/м²": round(s["final_pm2"]/1000, 0) if s["final_pm2"] else None,
                     "Итог всего, млн ₽": round(s["final_pm2"]*area/1e6, 1) if (s["final_pm2"] and area) else None,
-                    "Кварт. 400м": s["apt_400"],
-                    "Кварт. 800м": s["apt_800"],
+                    "Upside, млн ₽": round(s["upside_mln"], 1) if s["upside_mln"] is not None else None,
+                    "Upside, %": round(s["upside_pct"], 0) if s["upside_pct"] is not None else None,
+                    "Жит. 500м": r500,
+                    "≥10k жит.": "✓" if r500 >= 10_000 else "✗",
                 })
             st.dataframe(pd.DataFrame(price_rows), hide_index=True, use_container_width=True)
 
