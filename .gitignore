@@ -27,6 +27,12 @@ rent.md
 # look_a_like_prices — исходные данные ЖКХ (2.7 GB)
 look_a_like_prices/data/zhk/
 
+# look_a_like_prices — купленные данные (не для публичного доступа)
+look_a_like_prices/data/sale_dedup.csv
+look_a_like_prices/data/arenda_dedup.csv
+look_a_like_prices/_entrance_results.csv
+look_a_like_prices/_entrance_results_arenda.csv
+
 # look_a_like_prices — временные файлы
 look_a_like_prices/_entrance_progress.json
 look_a_like_prices/_cian_debug.txt
