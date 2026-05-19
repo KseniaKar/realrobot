@@ -9,6 +9,9 @@ property_goals/investmoscow_sold_2022_2026_enriched_geo.csv.bak
 property_goals/.claude/
 property_goals/check.txt
 property_goals/matches/property_usage_*.csv
+property_goals/matches/moscow_2026_04_new_organizations*.csv
+property_goals/matches/tenant_buyout_candidates.csv
+property_goals/matches/tenant_buyout_summary.csv
 
 # Папка с ноутбуками
 notebooks/
